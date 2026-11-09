@@ -22,6 +22,8 @@ services:
       NO_PROXY: broker,sim,localhost,postgres
     labels:
       academia.planta: pc
+    volumes:
+      - notas-media:/data/notas
     networks: [planta-lan, backend]
     depends_on: [postgres]
     deploy:
@@ -60,3 +62,4 @@ networks:
 
 volumes:
   sistema-db:
+  notas-media:

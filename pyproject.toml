@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Sistema de mantenimiento asistido para la planta de inyección PIA-3 (TP Academia Novit 2026, Entrega 1)"
 requires-python = ">=3.11"
 dependencies = [
-    "planta_contrato @ git+https://github.com/NovitSoftware/academia2026-planta#subdirectory=contrato",
+    "planta_contrato @ git+https://github.com/NovitSoftware/academia2026-tp#subdirectory=contrato",
     "langchain>=0.3",
     "paho-mqtt>=2.1",
     "pydantic>=2.7",

@@ -4,11 +4,16 @@ import threading
 import time
 
 import paho.mqtt.client as mqtt
+from planta_contrato import NotaRecorrida, Topicos
 
 from sistema.config import config
+from sistema.integraciones.planta_http import PlantaHTTP
+from sistema.procesamiento.recorridas import recibir_nota
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("agente")
+
+http = PlantaHTTP()
 
 
 def publicar_estado(client: mqtt.Client) -> None:
@@ -30,6 +35,14 @@ def on_connect(client: mqtt.Client, userdata, flags, reason_code, properties=Non
 
 def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage) -> None:
     log.info("recibido %s (%d bytes)", msg.topic, len(msg.payload))
+
+    if msg.topic == Topicos.RECORRIDAS:
+        try:
+            nota = NotaRecorrida.model_validate_json(msg.payload)
+        except Exception:
+            log.exception("nota de recorrida inválida en %s", msg.topic)
+            return
+        recibir_nota(nota, http)
 
 
 def main() -> None:

@@ -1,10 +1,12 @@
 import os
+from pathlib import Path
 
 
 class Config:
     mqtt_host = os.getenv("MQTT_HOST", "broker")
     mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
     historian_url = os.getenv("HISTORIAN_URL", "http://sim:8100")
+    media_dir = Path(os.getenv("MEDIA_DIR", "/data/notas"))
 
     postgres_host = os.getenv("POSTGRES_HOST", "postgres")
     postgres_port = int(os.getenv("POSTGRES_PORT", "5432"))

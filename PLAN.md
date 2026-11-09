@@ -56,7 +56,12 @@ Ver `../academia2026-tp/docs/contrato.md` para el detalle de redes y tópicos.
 - [x] 0.6 Latido: publicar `sistema/estado` cada 30 s. Implementado en `agente.py`.
 
 ### Fase 1 — Parte por voz (requerimiento A, completo)
-- [ ] 1.1 Suscribirse a `planta/recorridas`, bajar audio (`http://sim:8100{audio_url}`) y fotos.
+- [x] 1.1 Suscribirse a `planta/recorridas`, bajar audio (`http://sim:8100{audio_url}`) y fotos.
+      Probado en vivo: `docker compose up` (planta + esta solución) funcionando juntos,
+      agente conectado al broker y latido publicando. Ver `src/sistema/procesamiento/recorridas.py`.
+      **Corregido**: el `pip install` de `docs/contrato.md` apunta a un repo que no existe
+      (`academia2026-planta`); el correcto es `academia2026-tp#subdirectory=contrato` (mismo repo
+      de la planta). Ya ajustado en `pyproject.toml`.
 - [ ] 1.2 Transcripción con modelo **local** de la lista cerrada (obligatorio desde ya: en
       `fuga-sin-enlace` el enlace cae a los 10 min).
 - [ ] 1.3 Extracción a `FilaParte` con structured output (Pydantic): una fila por equipo+variable,
