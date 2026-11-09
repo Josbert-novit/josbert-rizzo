@@ -41,15 +41,19 @@ Ver `../academia2026-tp/docs/contrato.md` para el detalle de redes y tópicos.
 
 ### Fase 0 — Setup
 - [ ] 0.1 Crear repo público en GitHub `josbert-rizzo`, conectar este folder como `origin`.
-- [ ] 0.2 Elegir stack: Python 3.11+, LangChain, Pydantic (`extra="forbid"` en tools),
-      PostgreSQL 16 + pgvector.
-- [ ] 0.3 Esqueleto de carpetas (ver `docs/estructura-proyecto-python.md` de la planta):
+      **Pendiente de vos**: no tenés `gh` CLI instalado, así que lo creamos desde la web
+      (ver sección "Cómo crear el repo en GitHub" más abajo). Git local ya está inicializado
+      y con el primer commit hecho.
+- [x] 0.2 Elegir stack: Python 3.11+, LangChain, Pydantic (`extra="forbid"` en tools),
+      PostgreSQL 16 + pgvector. Ver `pyproject.toml`.
+- [x] 0.3 Esqueleto de carpetas (ver `docs/estructura-proyecto-python.md` de la planta):
       `dominio/`, `procesamiento/`, `llm/`, `rag/`, `persistencia/`, `integraciones/`, `interfaces/`.
-- [ ] 0.4 `docker-compose.yml` inicial: servicio(s) propios en `planta-lan` (external) +
-      `postgres:16` con `pgvector`. Probar que `docker compose up` levanta sin tocar la planta.
-- [ ] 0.5 Conectar al broker MQTT (`broker:1883` desde `planta-lan`) y confirmar que se reciben
-      mensajes de `planta/#`.
-- [ ] 0.6 Latido: publicar `sistema/estado` cada 30 s.
+- [x] 0.4 `docker-compose.yml` inicial: servicio(s) propios en `planta-lan` (external) +
+      `postgres:16` con `pgvector`. **Falta probar** `docker compose up` (Docker Desktop no
+      estaba corriendo al hacer el setup) — levantalo vos cuando puedas y avisame si falla algo.
+- [x] 0.5 Conectar al broker MQTT (`broker:1883` desde `planta-lan`) y confirmar que se reciben
+      mensajes de `planta/#`. Implementado en `src/sistema/agente.py` (sin probar en vivo todavía).
+- [x] 0.6 Latido: publicar `sistema/estado` cada 30 s. Implementado en `agente.py`.
 
 ### Fase 1 — Parte por voz (requerimiento A, completo)
 - [ ] 1.1 Suscribirse a `planta/recorridas`, bajar audio (`http://sim:8100{audio_url}`) y fotos.
@@ -124,6 +128,19 @@ Ver `../academia2026-tp/docs/contrato.md` para el detalle de redes y tópicos.
       - `sin_alerta_de_seguridad` → nunca fallar una S1–S4.
       - `sistema_mudo` → el sistema siempre tiene que responder/registrar algo, nunca quedarse callado.
 - [ ] 6.5 Commit, push, cargar el link del repo en el formulario de entregas.
+
+## Cómo crear el repo en GitHub (pendiente, lo hacés vos)
+
+1. Andá a https://github.com/new
+2. Nombre: `josbert-rizzo`, visibilidad **Public**, no inicialices con README/gitignore (ya los
+   tenemos localmente).
+3. Copiá la URL que te da (`https://github.com/<tu-usuario>/josbert-rizzo.git`) y pasámela, o
+   corré vos mismo:
+   ```bash
+   git remote add origin https://github.com/<tu-usuario>/josbert-rizzo.git
+   git push -u origin master
+   ```
+4. Avisame cuando esté y seguimos con la Fase 1.
 
 ## Convenciones de este plan
 
