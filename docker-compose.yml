@@ -1,0 +1,62 @@
+# Sistema de mantenimiento — TP Academia Novit 2026 (Entrega 1)
+#
+# Requiere la planta corriendo al lado (ver ../academia2026-tp):
+#   cd ../academia2026-tp && docker compose up -d --build
+#
+#   docker compose up -d --build
+#
+# Central de mantenimiento: http://localhost:8200
+
+name: josbert-rizzo
+
+services:
+  agente:
+    build: {context: ., dockerfile: src/Dockerfile}
+    env_file: [.env]
+    environment:
+      MQTT_HOST: broker
+      HISTORIAN_URL: http://sim:8100
+      POSTGRES_HOST: postgres
+      HTTP_PROXY: http://enlace:3128
+      HTTPS_PROXY: http://enlace:3128
+      NO_PROXY: broker,sim,localhost,postgres
+    labels:
+      academia.planta: pc
+    networks: [planta-lan, backend]
+    depends_on: [postgres]
+    deploy:
+      resources:
+        limits: {cpus: "4", memory: 8g}
+    restart: unless-stopped
+
+  central:
+    build: {context: ., dockerfile: src/Dockerfile}
+    command: ["uvicorn", "sistema.interfaces.central:app", "--host", "0.0.0.0", "--port", "8200"]
+    env_file: [.env]
+    environment:
+      POSTGRES_HOST: postgres
+    ports: ["${CENTRAL_PUERTO:-8200}:8200"]
+    networks: [backend]
+    depends_on: [postgres]
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sistema}
+      POSTGRES_USER: ${POSTGRES_USER:-sistema}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sistema}
+    volumes:
+      - sistema-db:/var/lib/postgresql/data
+    networks: [backend]
+    restart: unless-stopped
+
+networks:
+  # Red de la planta: ya existe, la crea academia2026-tp. No se recrea acá.
+  planta-lan:
+    external: true
+  # Red propia, para el agente, la central y postgres.
+  backend:
+
+volumes:
+  sistema-db:
