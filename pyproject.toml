@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "planta_contrato @ git+https://github.com/NovitSoftware/academia2026-tp#subdirectory=contrato",
     "langchain>=0.3",
+    "langchain-ollama>=0.2",
     "paho-mqtt>=2.1",
     "pydantic>=2.7",
     "fastapi>=0.115",
@@ -15,6 +16,9 @@ dependencies = [
     "pgvector>=0.3",
     "sqlalchemy>=2.0",
     "python-dotenv>=1.0",
+    "faster-whisper>=1.0",
+    "pyyaml>=6.0",
+    "mcp>=1.2",
 ]
 
 [project.optional-dependencies]

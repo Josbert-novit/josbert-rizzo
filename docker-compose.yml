@@ -11,35 +11,78 @@ name: josbert-rizzo
 
 services:
   agente:
-    build: {context: ., dockerfile: src/Dockerfile}
+    build:
+      context: .
+      dockerfile: src/Dockerfile
+      args:
+        TRANSCRIPCION_MODELO_LOCAL: ${TRANSCRIPCION_MODELO_LOCAL:-small}
     env_file: [.env]
     environment:
       MQTT_HOST: broker
       HISTORIAN_URL: http://sim:8100
       POSTGRES_HOST: postgres
+      OLLAMA_URL: http://ollama:11434
       HTTP_PROXY: http://enlace:3128
       HTTPS_PROXY: http://enlace:3128
-      NO_PROXY: broker,sim,localhost,postgres
+      NO_PROXY: broker,sim,localhost,postgres,ollama
+      # hf-xet (el backend de transferencia nuevo de huggingface_hub) no respeta bien
+      # HTTP_PROXY/HTTPS_PROXY acá adentro y se cuelga bajando el modelo de Whisper sin avisar
+      # ni dar error (ver BUGS.md). Con esto, huggingface_hub vuelve a bajar por HTTP común.
+      HF_HUB_DISABLE_XET: "1"
     labels:
       academia.planta: pc
     volumes:
       - notas-media:/data/notas
+      - whisper-modelos:/root/.cache/huggingface
     networks: [planta-lan, backend]
-    depends_on: [postgres]
+    depends_on:
+      postgres: {condition: service_healthy}
+      ollama: {condition: service_started}
     deploy:
       resources:
-        limits: {cpus: "4", memory: 8g}
+        limits: {cpus: "3", memory: 2g}
+    restart: unless-stopped
+
+  ollama:
+    # Los modelos se bajan en el BUILD de esta imagen (ver ollama/Dockerfile), no en el arranque
+    # del contenedor: el corrector borra los volúmenes entre escenarios (`down -v`), y bajar
+    # qwen2.5:1.5b (986 MB) en el arranque tardó más de 1 minuto en una corrida real — casi todo
+    # el tiempo real que dura un escenario. Horneado en la imagen, el modelo está listo al toque.
+    build:
+      context: ./ollama
+      args:
+        LLM_MODELO_EXTRACCION: ${LLM_MODELO_EXTRACCION:-qwen2.5:1.5b}
+        RAG_MODELO_EMBEDDINGS: ${RAG_MODELO_EMBEDDINGS:-nomic-embed-text}
+    environment:
+      HTTP_PROXY: http://enlace:3128
+      HTTPS_PROXY: http://enlace:3128
+      NO_PROXY: broker,sim,localhost,postgres,agente,127.0.0.1
+    labels:
+      academia.planta: pc
+    volumes:
+      - ollama-modelos:/root/.ollama
+    networks: [planta-lan]
+    deploy:
+      resources:
+        limits: {cpus: "4", memory: 6g}
     restart: unless-stopped
 
   central:
-    build: {context: ., dockerfile: src/Dockerfile}
+    build:
+      context: .
+      dockerfile: src/Dockerfile
+      args:
+        TRANSCRIPCION_MODELO_LOCAL: ${TRANSCRIPCION_MODELO_LOCAL:-small}
     command: ["uvicorn", "sistema.interfaces.central:app", "--host", "0.0.0.0", "--port", "8200"]
     env_file: [.env]
     environment:
       POSTGRES_HOST: postgres
     ports: ["${CENTRAL_PUERTO:-8200}:8200"]
+    volumes:
+      - notas-media:/data/notas:ro
     networks: [backend]
-    depends_on: [postgres]
+    depends_on:
+      postgres: {condition: service_healthy}
     restart: unless-stopped
 
   postgres:
@@ -51,6 +94,11 @@ services:
     volumes:
       - sistema-db:/var/lib/postgresql/data
     networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sistema}"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
     restart: unless-stopped
 
 networks:
@@ -63,3 +111,5 @@ networks:
 volumes:
   sistema-db:
   notas-media:
+  ollama-modelos:
+  whisper-modelos:
