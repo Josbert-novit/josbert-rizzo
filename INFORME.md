@@ -8,11 +8,15 @@ inferencia es CPU.
 
 ## Modelos por tarea
 
-| Tarea | Modelo | Proveedor | Local/nube | Parámetros | Por qué |
-| --- | --- | --- | --- | --- | --- |
-| Transcripción de audio (1.2) | `faster-whisper` modelo **small** (CTranslate2, int8) | Systran (reempaquetado de Whisper de OpenAI) | **Local** | ~244 M | Tiene que seguir andando con el enlace caído (`fuga-sin-enlace` corta el acceso a internet a los 10 min) — nada que dependa de una API externa puede estar en el camino de la transcripción ni de la detección de alerta de seguridad. |
-| Extracción de filas del parte (1.3) | **qwen2.5:1.5b** | Alibaba / Ollama | **Local** | 1.5 B | Mismo motivo: la extracción alimenta la detección de seguridad indirectamente (el diálogo de confirmación) y no puede depender del enlace. Un modelo de 1.5 B es lo más grande que corre con latencia aceptable (~5-10 s por llamada) en esta CPU sin GPU — se probó porque es el piso razonable para `structured output` vía Ollama. |
-| Embeddings para RAG (5.1) | **nomic-embed-text** | Nomic AI / Ollama | **Local** | ~137 M | Mismo criterio: sin dependencia de nube. Necesita los prefijos de tarea (`search_document:`/`search_query:`) para rendir bien — encontrado y arreglado en vivo (bug #19, `BUGS.md`): sin ellos, `hit@5` caía de 0.648 a 0.535 contra la suite de 71 preguntas. |
+| Tarea | Modelo | Proveedor | Versión | Local/nube | Parámetros | Por qué |
+| --- | --- | --- | --- | --- | --- | --- |
+| Transcripción de audio (1.2) | `faster-whisper` modelo **small** (CTranslate2, int8) | Systran (reempaquetado de Whisper de OpenAI) | `Systran/faster-whisper-small`, revisión `536b066`; faster-whisper 1.2.1, CTranslate2 4.9.0 | **Local** | ~244 M | Tiene que seguir andando con el enlace caído (`fuga-sin-enlace` corta el acceso a internet a los 10 min) — nada que dependa de una API externa puede estar en el camino de la transcripción ni de la detección de alerta de seguridad. |
+| Extracción de filas del parte (1.3) | **qwen2.5:1.5b** | Alibaba / Ollama | `qwen2.5:1.5b`, id `65ec06548149`, cuantización Q4_K_M; Ollama 0.5.4 | **Local** | 1.5 B | Mismo motivo: la extracción alimenta la detección de seguridad indirectamente (el diálogo de confirmación) y no puede depender del enlace. Un modelo de 1.5 B es lo más grande que corre con latencia aceptable (~5-10 s por llamada) en esta CPU sin GPU — se probó porque es el piso razonable para `structured output` vía Ollama. |
+| Embeddings para RAG (5.1) | **nomic-embed-text** | Nomic AI / Ollama | `nomic-embed-text:latest`, id `0a109f422b47`, F16, 768 dimensiones; Ollama 0.5.4 | **Local** | 136.7 M | Mismo criterio: sin dependencia de nube. Necesita los prefijos de tarea (`search_document:`/`search_query:`) para rendir bien — encontrado y arreglado en vivo (bug #19, `BUGS.md`): sin ellos, `hit@5` caía de 0.648 a 0.535 contra la suite de 71 preguntas. |
+
+Versiones leídas de las imágenes Docker del sistema (`ollama list`, `ollama show` y la caché de
+Hugging Face de la imagen del agente). Librerías principales: Python 3.11.18, LangChain 1.5.0,
+langchain-ollama 1.1.0, Pydantic 2.14.3 y MCP SDK 2.3.0.
 
 **No se usó ningún modelo de nube en esta entrega.** El enunciado permite nube para tareas no
 críticas en tiempo real (p. ej. RAG), pero el corpus y el volumen de esta Entrega 1 no lo
