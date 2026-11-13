@@ -8,9 +8,16 @@ trae por la API de la planta (`archivo_json`), igual que el resto del corpus (5.
 
 Correr dentro del contenedor del agente (necesita red hacia `sim`, `postgres` y `ollama`):
     docker compose exec agente python -m evaluacion.evaluar_retrieval
+
+Con `--oficial` se evalúa además con `corpus.evaluar.evaluar` de la planta (lo que pide el Anexo
+de la Entrega 1) y se compara contra su línea de base BM25, calculada en el momento sobre los
+mismos fragmentos. El paquete `corpus` se monta solo para esta corrida, no es dependencia del
+sistema:
+    docker compose run --rm -v ../academia2026-tp/planta:/academia/planta:ro agente         python -m evaluacion.evaluar_retrieval --oficial
 """
 
 import logging
+import os
 import sys
 from dataclasses import dataclass, field
 
@@ -108,5 +115,35 @@ def main() -> None:
             print(f"  {p['id']}: relevantes={p['relevantes']} recuperadas(top5)={p['recuperadas'][:5]}")
 
 
+def main_oficial() -> None:
+    """Evaluación con el evaluador oficial de la planta (`corpus.evaluar.evaluar`) y comparación
+    contra su BM25 sobre los mismos fragmentos. `distractor@k` es la proporción de preguntas en las
+    que una sección que no debería (p. ej. la Rev. C) aparece antes que cualquier relevante."""
+    sys.path.insert(0, os.getenv("CORPUS_DIR", "/academia/planta"))
+    from corpus.evaluar import BM25, evaluar as evaluar_oficial  # noqa: PLC0415
+
+    logging.basicConfig(level=logging.WARNING)
+    http = PlantaHTTP()
+    embeddings = Embeddings()
+    suite = http.archivo_json("evaluacion/retrieval.json")
+    fragmentos = http.fragmentos()
+
+    def buscador(pregunta: str, k: int) -> list[str]:
+        return [f.cita for f in buscar(embeddings, pregunta, k=k)]
+
+    for nombre, funcion in (("Nuestro (pgvector)", buscador), ("BM25 (línea de base)", BM25(fragmentos).buscar)):
+        r = evaluar_oficial(funcion, suite)
+        t = r["total"]
+        print(f"\n{nombre} · {r['n']} preguntas")
+        for metrica in ("hit", "recall", "distractor"):
+            print(f"  {metrica + '@k':14}" + "  ".join(f"{k}={t[f'{metrica}@{k}']}" for k in KS))
+        print(f"  mrr           {t['mrr']}")
+        for tipo, m in r["por_tipo"].items():
+            print(f"    {tipo:14} n={m['n']:2}  hit@5={m['hit@5']}  recall@5={m['recall@5']}")
+
+
 if __name__ == "__main__":
+    if "--oficial" in sys.argv:
+        main_oficial()
+        sys.exit(0)
     main()

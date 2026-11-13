@@ -8,7 +8,7 @@ reinicia). Persistirlo en Postgres es parte de 5.7 (memoria de conversación).
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 
 from planta_contrato import MensajeTablet, Pantalla
 
@@ -20,6 +20,7 @@ from sistema.procesamiento.rango_historico import VerificadorRango
 from sistema.procesamiento.resolucion import ResolverNombres
 from sistema.procesamiento.resolucion import _normalizar as _normalizar_dicho
 from sistema.procesamiento.variables import mapear_variable
+from sistema.reloj import reloj
 
 PALABRAS_CONFIRMACION = ("si", "sí", "dale", "confirmo", "correcto", "listo", "ok", "esta bien", "está bien")
 
@@ -80,7 +81,7 @@ def construir_mensaje(estado: EstadoDialogo) -> MensajeTablet:
 
     mensaje = MensajeTablet(
         id=str(uuid.uuid4()),
-        ts=datetime.now(timezone.utc),
+        ts=reloj.ahora(),
         nota_ids=estado.parte.nota_ids,
         texto=texto,
         pantalla=Pantalla(
@@ -138,7 +139,7 @@ def procesar_respuesta(
             return True
         if _presupuesto_disponible(estado):
             filas_corregidas = interpretar_texto(
-                texto_respuesta, datetime.now(timezone.utc), [], extractor, resolver, verificador_rango, estado.consumo
+                texto_respuesta, reloj.ahora(), [], extractor, resolver, verificador_rango, estado.consumo
             )
             _mergear_correccion(estado.parte, filas_corregidas)
             return False

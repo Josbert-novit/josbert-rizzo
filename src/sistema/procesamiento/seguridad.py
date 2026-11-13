@@ -20,7 +20,7 @@ import re
 import unicodedata
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 from planta_contrato import EventoSistema, MensajeTablet, NotaRecorrida, Pantalla, TipoEvento
 
@@ -108,7 +108,7 @@ def construir_evento(deteccion: Deteccion, nota: NotaRecorrida) -> EventoSistema
 def construir_mensaje_tablet(deteccion: Deteccion, nota: NotaRecorrida) -> MensajeTablet:
     return MensajeTablet(
         id=str(uuid.uuid4()),
-        ts=datetime.now(timezone.utc),
+        ts=nota.ts,
         nota_ids=[nota.id],
         texto=f"ALERTA DE SEGURIDAD ({deteccion.codigo}): {deteccion.descripcion}. {deteccion.procedimiento}",
         pantalla=Pantalla(titulo=f"Alerta de seguridad {deteccion.codigo}"),

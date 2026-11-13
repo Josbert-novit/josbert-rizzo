@@ -9,7 +9,7 @@ en el parte, `valor: None` con la observación "parada, en reserva") y nunca se 
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 from planta_contrato import Calidad, EventoSistema, LecturaSensor, TipoEvento
 
@@ -19,6 +19,7 @@ from sistema.procesamiento.limites import CatalogoLimites, EstadoBombas, nivel_a
 from sistema.procesamiento.tendencia import tendencia_reciente
 from sistema.procesamiento.unidades import a_kgcm2
 from sistema.procesamiento.variables import mapear_variable
+from sistema.reloj import reloj
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ def evaluar_parte(parte: Parte, catalogo: CatalogoLimites, http: PlantaHTTP | No
                 detalle += f", tendencia {tendencia} en las últimas horas"
         anomalas.append((fila.tag, canonica, detalle))
 
-    hora = parte.filas[0].hora if parte.filas else datetime.now(timezone.utc)
+    hora = parte.filas[0].hora if parte.filas else reloj.ahora()
     if not anomalas:
         return EventoSistema(
             id=f"EVT-PARTE-{parte.id}",

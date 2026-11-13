@@ -2,7 +2,6 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturoTimeoutError
-from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 from planta_contrato import (
@@ -17,6 +16,7 @@ from planta_contrato import (
 )
 
 from sistema.config import config
+from sistema.integraciones.enlace import enlace_arriba
 from sistema.integraciones.planta_http import PlantaHTTP
 from sistema.llm.control import ConsumoTokens
 from sistema.llm.extraccion import Extractor
@@ -29,6 +29,7 @@ from sistema.procesamiento.rango_historico import VerificadorRango
 from sistema.procesamiento.recorridas import armar_parte, descargar_y_transcribir, guardar_parte
 from sistema.procesamiento.resolucion import ResolverNombres
 from sistema.procesamiento.seguridad import construir_evento, construir_mensaje_tablet, detectar
+from sistema.reloj import reloj
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("agente")
@@ -140,7 +141,7 @@ def _vigilar_corte(client: mqtt.Client, nota: NotaRecorrida, futuro) -> None:
         log.error("nota %s: no se terminó de procesar en %.0f s, se corta", nota.id, config.timeout_nota_s)
         evento = EventoSistema(
             id=f"EVT-TIMEOUT-{nota.id}",
-            ts=datetime.now(timezone.utc),
+            ts=reloj.ahora(),
             tipo=TipoEvento.escalado,
             origen="parte",
             nota_ids=[nota.id],
@@ -149,7 +150,7 @@ def _vigilar_corte(client: mqtt.Client, nota: NotaRecorrida, futuro) -> None:
         client.publish(Topicos.EVENTOS, evento.model_dump_json())
         mensaje_fallback = MensajeTablet(
             id=f"TIMEOUT-{nota.id}",
-            ts=datetime.now(timezone.utc),
+            ts=reloj.ahora(),
             nota_ids=[nota.id],
             texto="Estamos procesando tu nota, puede demorar — seguimos trabajando en segundo plano.",
             espera_respuesta=False,
@@ -180,9 +181,11 @@ def _procesar_nota_con_corte(client: mqtt.Client, nota: NotaRecorrida) -> None:
 def publicar_estado(client: mqtt.Client) -> None:
     while True:
         estado = EstadoSistema(
-            ts=datetime.now(timezone.utc),
+            ts=reloj.ahora(),
             sistema="josbert-rizzo",
-            enlace_ok=True,
+            # Estado real del enlace (sondeo al proxy `enlace:3128`). Todavía no hay cola de salida
+            # (es de la Entrega 2: bloque E), así que no hay nada pendiente de sincronizar.
+            enlace_ok=enlace_arriba(),
             pendientes_sincronizar=0,
         )
         client.publish(Topicos.ESTADO, estado.model_dump_json())
@@ -202,6 +205,7 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage) -> None:
         except Exception:
             log.exception("lectura de sensor inválida en %s", msg.topic)
             return
+        reloj.avanzar(lectura.ts)
         evento = detector_sensores.procesar(lectura)
         if evento is not None:
             client.publish(Topicos.EVENTOS, evento.model_dump_json())
@@ -216,6 +220,7 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage) -> None:
         except Exception:
             log.exception("nota de recorrida inválida en %s", msg.topic)
             return
+        reloj.avanzar(nota.ts)
         _procesar_nota_con_corte(client, nota)
 
     elif msg.topic == Topicos.RESPUESTAS:
@@ -224,6 +229,7 @@ def on_message(client: mqtt.Client, userdata, msg: mqtt.MQTTMessage) -> None:
         except Exception:
             log.exception("respuesta de operador inválida en %s", msg.topic)
             return
+        reloj.avanzar(respuesta.ts)
         estado = dialogos_pendientes.pop(respuesta.mensaje_id, None)
         if estado is None:
             log.warning("respuesta %s no corresponde a ningún diálogo pendiente", respuesta.mensaje_id)

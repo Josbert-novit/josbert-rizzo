@@ -22,4 +22,8 @@ RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${TRANSCRI
 ENV PYTHONPATH=/app/src
 WORKDIR /app/src
 
+# Scripts de evaluación (`python -m evaluacion.evaluar_retrieval`, `evaluar_parte`), copiados
+# después de Whisper para no invalidar esa capa cuando cambian.
+COPY evaluacion /app/src/evaluacion
+
 CMD ["python", "-m", "sistema.agente"]

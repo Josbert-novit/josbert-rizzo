@@ -4,6 +4,7 @@ Trampa de versiones (5.2): por default solo se buscan fragmentos `vigente=true`.
 manual de la bomba (`vigente=false`) se indexa igual (por si alguna vez hace falta consultarla a
 propósito, con `incluir_no_vigente=True`), pero nunca compite con la Rev. D por default — así no
 hace falta que el ranking "le gane" a la revisión vieja, directamente no está en la carrera.
+Lo mismo con las secciones de otros modelos u otras plantas (`aplica=false`, ver `indexar.py`).
 `GET /api/planta` sigue siendo la fuente de verdad para límites de alarma (eso no sale del RAG,
 ver 5.5); esto es para preguntas de texto libre contra los manuales/contrato/historial.
 """
@@ -32,6 +33,7 @@ def buscar(
     k: int = 5,
     equipo: str | None = None,
     incluir_no_vigente: bool = False,
+    incluir_no_aplicables: bool = False,
 ) -> list[Fragmento]:
     vector = Vector(embeddings.embed_consulta(pregunta))
 
@@ -39,6 +41,8 @@ def buscar(
     parametros_condicion: list = []
     if not incluir_no_vigente:
         condiciones.append("vigente = true")
+    if not incluir_no_aplicables:
+        condiciones.append("aplica = true")
     if equipo:
         condiciones.append("(cardinality(equipos) = 0 OR %s = ANY(equipos))")
         parametros_condicion.append(equipo)

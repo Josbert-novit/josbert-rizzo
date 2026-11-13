@@ -104,9 +104,18 @@ consultar exacto) sin ninguna ganancia.
 
 **Trampas del corpus (5.2)**: la Rev. C del manual (`vigente: false`) se indexa pero se excluye
 por default de la búsqueda (`vigente=true` es un filtro duro, no una preferencia de ranking) —
-confirmado en 5.3: ninguna de las 71 preguntas recupera una cita no vigente. Las secciones de
-otros modelos/plantas (TX-250, TX-500, PIA-1, PIA-2) no se filtran aparte: quedan sujetas a la
-calidad del embedding semántico, que los resultados de 5.3 miden directamente.
+confirmado en 5.3: ninguna de las 71 preguntas recupera una cita no vigente, así que la revisión
+vieja queda por encima de la vigente en 0 de 71 casos. Las secciones de otros modelos u otras plantas
+(límites de TX-250/TX-500, de PIA-1/PIA-2, equipos de otras plantas) se marcan `aplica=false` al
+indexar, según su título (`rag/indexar.py`), y se excluyen igual que la Rev. C.
+
+Evaluación con el evaluador oficial de la planta (`corpus.evaluar.evaluar`) y comparación contra
+la línea de base BM25 sobre los mismos fragmentos:
+
+```bash
+docker compose run --rm -v ../academia2026-tp/planta:/academia/planta:ro agente \
+    python -m evaluacion.evaluar_retrieval --oficial
+```
 
 ## Cómo correr los tests
 

@@ -2,7 +2,8 @@
 
 Una fila por fragmento (sección de manual/contrato, u orden del historial), con los metadatos
 necesarios para filtrar las trampas del corpus (5.2) sin depender del LLM para eso: `vigente`
-(Rev. C vs D) y `equipos` (para no confundir una TX-350 con una TX-250 mencionada de paso).
+(Rev. C vs D), `aplica` (secciones de otros modelos de la familia TX o de otras plantas, que no
+corresponden a PIA-3) y `equipos`.
 """
 
 import psycopg
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS rag_fragmentos (
     clave TEXT,
     pagina INTEGER,
     vigente BOOLEAN NOT NULL DEFAULT true,
+    aplica BOOLEAN NOT NULL DEFAULT true,  -- false: sección de otro modelo/planta (trampa 5.2)
     tipo TEXT,                        -- manual_fabricante, manual_operadora, contrato, historial
     equipos TEXT[] NOT NULL DEFAULT '{{}}',
     texto TEXT NOT NULL,
@@ -32,6 +34,8 @@ CREATE TABLE IF NOT EXISTS rag_fragmentos (
 CREATE INDEX IF NOT EXISTS rag_fragmentos_embedding_idx
     ON rag_fragmentos USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS rag_fragmentos_vigente_idx ON rag_fragmentos (vigente);
+-- Bases indexadas antes de agregar `aplica`: la columna se suma sin reindexar desde cero.
+ALTER TABLE rag_fragmentos ADD COLUMN IF NOT EXISTS aplica BOOLEAN NOT NULL DEFAULT true;
 """
 
 
