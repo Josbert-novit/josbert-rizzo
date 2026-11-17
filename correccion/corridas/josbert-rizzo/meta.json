@@ -1,0 +1,23 @@
+{
+  "alumno": "josbert-rizzo",
+  "repo": "C:\\Users\\josbe\\OneDrive\\Escritorio\\TpAcademia-1\\josbert-rizzo",
+  "commit": "84a2abf7517a18d3c12bbcece6d22dad95100734",
+  "fecha": "2026-11-10T16:04:53",
+  "corrida": {
+    "reloj": {
+      "modo": "eventos",
+      "rapida": 1800,
+      "lenta": 5,
+      "silencio_s": 5,
+      "minimo_s": 3,
+      "maximo_s": 120
+    },
+    "velocidad": 120,
+    "espera_arranque_s": 180,
+    "gracia_final_s": 60
+  },
+  "escenarios": [
+    "martes-tranquilo",
+    "fuga-sin-enlace"
+  ]
+}

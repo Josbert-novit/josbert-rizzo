@@ -124,6 +124,11 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Resultados del corrector automático
+
+Las corridas reales de `corregir.py` contra este repo están en [correccion/](correccion/README.md)
+(última: **63.4 / 100 · APRUEBA**).
+
 ## Estructura
 
 Ver [docs/estructura-proyecto-python.md](../academia2026-tp/docs/estructura-proyecto-python.md)

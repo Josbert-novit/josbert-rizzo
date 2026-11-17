@@ -1,0 +1,529 @@
+{
+  "alumno": "josbert-rizzo",
+  "nota": 62.0,
+  "aprueba": true,
+  "nota_minima": 60,
+  "puntos": 39.07,
+  "peso_medido": 63.0,
+  "peso_total": 93.0,
+  "eliminatorias": {},
+  "entrega": {
+    "README.md": true,
+    "docker-compose.yml": true,
+    "tests": true
+  },
+  "escenarios_sin_datos": [
+    "tormenta-perfecta",
+    "sin-luz",
+    "contratista",
+    "ataque",
+    "libre"
+  ],
+  "bloques": [
+    {
+      "id": "A",
+      "nombre": "Parte por voz",
+      "criterios": [
+        {
+          "id": "A1",
+          "nombre": "Cobertura",
+          "peso": 5,
+          "valor": 1.0,
+          "puntos": 5.0,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 1.0,
+              "detalle": {
+                "notas": 9,
+                "sin_borrador": []
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 1.0,
+              "detalle": {
+                "notas": 4,
+                "sin_borrador": []
+              }
+            }
+          }
+        },
+        {
+          "id": "A2",
+          "nombre": "Borrador al primer intento",
+          "peso": 10,
+          "valor": 0.056,
+          "puntos": 0.56,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 0.111,
+              "detalle": {
+                "notas": 9,
+                "confirmados_al_primero": 1
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 0.0,
+              "detalle": {
+                "notas": 4,
+                "confirmados_al_primero": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "A3",
+          "nombre": "Parte final correcto",
+          "peso": 8,
+          "valor": 0.111,
+          "puntos": 0.89,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 0.222,
+              "detalle": {
+                "notas": 9,
+                "sin_confirmar": [
+                  "NOTA-00002",
+                  "NOTA-00003",
+                  "NOTA-00005",
+                  "NOTA-00008",
+                  "NOTA-00006",
+                  "NOTA-00011",
+                  "NOTA-00013"
+                ]
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 0.0,
+              "detalle": {
+                "notas": 4,
+                "sin_confirmar": [
+                  "NOTA-00001",
+                  "NOTA-00006",
+                  "NOTA-00004",
+                  "NOTA-00005"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "A4a",
+          "nombre": "Pregunta cuando hace falta",
+          "peso": 4,
+          "valor": 1.0,
+          "puntos": 4.0,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 1.0,
+              "detalle": {
+                "ambiguas": [
+                  "NOTA-00008",
+                  "NOTA-00011"
+                ],
+                "pregunto": [
+                  "NOTA-00008",
+                  "NOTA-00011"
+                ]
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 1.0,
+              "detalle": {
+                "ambiguas": [
+                  "NOTA-00006"
+                ],
+                "pregunto": [
+                  "NOTA-00006"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "A4b",
+          "nombre": "No pregunta de más",
+          "peso": 3,
+          "valor": 0.393,
+          "puntos": 1.18,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 0.286,
+              "detalle": {
+                "claras": 7,
+                "preguntas_de_mas": [
+                  "NOTA-00002",
+                  "NOTA-00003",
+                  "NOTA-00005",
+                  "NOTA-00006",
+                  "NOTA-00010"
+                ]
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 0.5,
+              "detalle": {
+                "claras": 2,
+                "preguntas_de_mas": [
+                  "NOTA-00004"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "nombre": "Detección en planta",
+      "criterios": [
+        {
+          "id": "B1",
+          "nombre": "Sin novedad / Escalado",
+          "peso": 10,
+          "valor": 0.597,
+          "puntos": 5.97,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 0.444,
+              "detalle": {
+                "decisiones": 18,
+                "errores": [
+                  {
+                    "nota": "NOTA-00002",
+                    "equipo": "F-201A",
+                    "esperado": "SinNovedad",
+                    "publicado": [
+                      "Escalado"
+                    ]
+                  },
+                  {
+                    "nota": "NOTA-00002",
+                    "equipo": "B-102",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  },
+                  {
+                    "nota": "NOTA-00003",
+                    "equipo": "B-101",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  },
+                  {
+                    "nota": "NOTA-00003",
+                    "equipo": "F-201B",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  },
+                  {
+                    "nota": "NOTA-00011",
+                    "equipo": "B-101",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  },
+                  {
+                    "nota": "NOTA-00011",
+                    "equipo": "B-102",
+                    "esperado": "SinNovedad",
+                    "publicado": [
+                      "Escalado"
+                    ]
+                  },
+                  {
+                    "nota": "NOTA-00011",
+                    "equipo": "F-201A",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  },
+                  {
+                    "nota": "NOTA-00013",
+                    "equipo": "B-102",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  },
+                  {
+                    "nota": "NOTA-00013",
+                    "equipo": "F-201A",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  },
+                  {
+                    "nota": "NOTA-00013",
+                    "equipo": "B-101",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  }
+                ]
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 0.75,
+              "detalle": {
+                "decisiones": 4,
+                "errores": [
+                  {
+                    "nota": "NOTA-00005",
+                    "equipo": "B-101",
+                    "esperado": "SinNovedad",
+                    "publicado": []
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "B2",
+          "nombre": "Alerta de seguridad",
+          "peso": 10,
+          "valor": 1.0,
+          "puntos": 10.0,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": null,
+              "detalle": {}
+            },
+            "fuga-sin-enlace": {
+              "valor": 1.0,
+              "detalle": {
+                "notas_inseguras": [
+                  {
+                    "nota": "NOTA-00001",
+                    "alerta": true,
+                    "aviso_en_tablet": true
+                  }
+                ],
+                "falsas_alarmas": []
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "D",
+      "nombre": "Órdenes de trabajo",
+      "criterios": [
+        {
+          "id": "D1",
+          "nombre": "Reglas de aprobación",
+          "peso": 15,
+          "estado": "sin datos",
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": null,
+              "detalle": {
+                "ordenes_decididas": 0,
+                "mal_decididas": []
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": null,
+              "detalle": {
+                "ordenes_decididas": 0,
+                "mal_decididas": []
+              }
+            }
+          }
+        },
+        {
+          "id": "D2",
+          "nombre": "Orden adecuada a la falla",
+          "peso": 10,
+          "estado": "sin datos",
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": null,
+              "detalle": {
+                "fallas": []
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": null,
+              "detalle": {
+                "fallas": []
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "E",
+      "nombre": "Operación sin enlace",
+      "criterios": [
+        {
+          "id": "E1",
+          "nombre": "Sigue andando sin enlace",
+          "peso": 3,
+          "valor": 1.0,
+          "puntos": 3.0,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": null,
+              "detalle": {
+                "notas_durante_el_corte": 0,
+                "con_respuesta_en_la_tablet": 0
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 1.0,
+              "detalle": {
+                "notas_durante_el_corte": 1,
+                "con_respuesta_en_la_tablet": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "E2",
+          "nombre": "Pendientes visibles",
+          "peso": 3,
+          "valor": 0.5,
+          "puntos": 1.5,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": null,
+              "detalle": {}
+            },
+            "fuga-sin-enlace": {
+              "valor": 0.5,
+              "detalle": {
+                "avisa_pendientes_en_el_corte": false,
+                "queda_en_cero_despues": true
+              }
+            }
+          }
+        },
+        {
+          "id": "E3",
+          "nombre": "Sin duplicados",
+          "peso": 4,
+          "valor": 1.0,
+          "puntos": 4.0,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 1.0,
+              "detalle": {
+                "duplicados": []
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 1.0,
+              "detalle": {
+                "duplicados": []
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "F",
+      "nombre": "Robustez",
+      "criterios": [
+        {
+          "id": "F1",
+          "nombre": "Mensajes válidos",
+          "peso": 2,
+          "valor": 1.0,
+          "puntos": 2.0,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 1.0,
+              "detalle": {
+                "total": 98,
+                "invalidos": []
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 1.0,
+              "detalle": {
+                "total": 57,
+                "invalidos": []
+              }
+            }
+          }
+        },
+        {
+          "id": "F2",
+          "nombre": "Latido",
+          "peso": 1,
+          "valor": 0.977,
+          "puntos": 0.98,
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": 0.955,
+              "detalle": {
+                "latidos": 23,
+                "huecos_largos": 1
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": 1.0,
+              "detalle": {
+                "latidos": 14,
+                "huecos_largos": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "F3",
+          "nombre": "Sobrevive al corte de luz",
+          "peso": 2,
+          "estado": "sin datos",
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": null,
+              "detalle": {}
+            },
+            "fuga-sin-enlace": {
+              "valor": null,
+              "detalle": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "G",
+      "nombre": "Cierre y certificación",
+      "criterios": [
+        {
+          "id": "G1",
+          "nombre": "Orden ejecutada",
+          "peso": 3,
+          "estado": "sin datos",
+          "escenarios": {
+            "martes-tranquilo": {
+              "valor": null,
+              "detalle": {
+                "cierres": 0,
+                "ejecutadas": []
+              }
+            },
+            "fuga-sin-enlace": {
+              "valor": null,
+              "detalle": {
+                "cierres": 0,
+                "ejecutadas": []
+              }
+            }
+          }
+        },
+        {
+          "id": "G2",
+          "nombre": "Cierre propio",
+          "peso": 2,
+          "estado": "inactivo"
+        },
+        {
+          "id": "G3",
+          "nombre": "Certificación de la contratista",
+          "peso": 5,
+          "estado": "inactivo"
+        }
+      ]
+    }
+  ]
+}

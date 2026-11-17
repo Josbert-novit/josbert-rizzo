@@ -1,0 +1,110 @@
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.96kB 0.0s done
+#1 DONE 0.0s
+
+#2 [agente internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.24kB 0.0s done
+#2 DONE 0.0s
+
+#3 [ollama internal] load build definition from Dockerfile
+#3 transferring dockerfile: 1.09kB done
+#3 DONE 0.0s
+
+#4 [ollama internal] load metadata for docker.io/ollama/ollama:0.5.4
+#4 DONE 0.0s
+
+#5 [ollama internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [ollama 1/2] FROM docker.io/ollama/ollama:0.5.4@sha256:18bfb1d605604fd53dcad20d0556df4c781e560ebebcd923454d627c994a0e37
+#6 resolve docker.io/ollama/ollama:0.5.4@sha256:18bfb1d605604fd53dcad20d0556df4c781e560ebebcd923454d627c994a0e37 0.0s done
+#6 DONE 0.0s
+
+#7 [ollama 2/2] RUN ollama serve &     SERVER_PID=$! &&     sleep 3 &&     OLLAMA_HOST=127.0.0.1:11434 ollama pull "qwen2.5:1.5b" &&     OLLAMA_HOST=127.0.0.1:11434 ollama pull "nomic-embed-text" &&     kill "$SERVER_PID"
+#7 CACHED
+
+#8 [ollama] exporting to image
+#8 exporting layers done
+#8 exporting manifest sha256:fb16d120d1682204f7d4a958cb5c22e44be294450d583eace826e80dd839f3a0 done
+#8 exporting config sha256:9550dd53016f34e6610edc5cb7c799155cae07f98f97dad00ee13c8b36480448 done
+#8 exporting attestation manifest sha256:f2ae68ae6a02d3dcb684790a894a0075b4e034e8650cf3d8506be367467f5272 0.0s done
+#8 exporting manifest list sha256:42f1d5826735e043642aecd891097b639d0c637240102121660df98b1257972a 0.0s done
+#8 naming to docker.io/library/alumno-josbert-rizzo-ollama:latest done
+#8 unpacking to docker.io/library/alumno-josbert-rizzo-ollama:latest 0.0s done
+#8 DONE 0.1s
+
+#9 [ollama] resolving provenance for metadata file
+#9 DONE 0.0s
+
+#10 [agente internal] load metadata for docker.io/library/python:3.11-slim
+#10 DONE 0.4s
+
+#11 [agente internal] load .dockerignore
+#11 transferring context: 2B done
+#11 DONE 0.0s
+
+#12 [central internal] load build context
+#12 transferring context: 6.45kB 0.0s done
+#12 DONE 0.0s
+
+#13 [agente 1/9] FROM docker.io/library/python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535
+#13 resolve docker.io/library/python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 0.0s done
+#13 DONE 0.0s
+
+#14 [central 7/9] RUN python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
+#14 CACHED
+
+#15 [central 2/9] RUN apt-get update && apt-get install -y --no-install-recommends git libgomp1     && rm -rf /var/lib/apt/lists/*
+#15 CACHED
+
+#16 [central 3/9] WORKDIR /app
+#16 CACHED
+
+#17 [central 6/9] RUN pip install --no-cache-dir -e /app
+#17 CACHED
+
+#18 [central 4/9] COPY pyproject.toml /app/pyproject.toml
+#18 CACHED
+
+#19 [central 5/9] COPY src /app/src
+#19 CACHED
+
+#20 [central 8/9] WORKDIR /app/src
+#20 CACHED
+
+#21 [agente 9/9] COPY evaluacion /app/src/evaluacion
+#21 CACHED
+
+#22 [central] exporting to image
+#22 exporting layers done
+#22 exporting manifest sha256:5dcbb4c172c35ff628e5e83351849d80458509b25526b455a91c6690d82268c8 done
+#22 exporting config sha256:f2785dec9df22738890783faa3a0d0947fd47f7cc72521b6ce663823f459db34 done
+#22 exporting attestation manifest sha256:04779c42a2c5acc4c9ff02822f5d583fd8d8fe3f3f7c1cdc41fd2fbc7b726fe3 0.0s done
+#22 exporting manifest list sha256:c39a0a2d6a6cf3a7da269a4da6ff7c03818e5c33ec5f66ca265fd169ab951879
+#22 exporting manifest list sha256:c39a0a2d6a6cf3a7da269a4da6ff7c03818e5c33ec5f66ca265fd169ab951879 0.0s done
+#22 naming to docker.io/library/alumno-josbert-rizzo-central:latest done
+#22 unpacking to docker.io/library/alumno-josbert-rizzo-central:latest 0.0s done
+#22 DONE 0.2s
+
+#23 [agente] exporting to image
+#23 exporting layers done
+#23 exporting manifest sha256:ca9f512af4f373a9e6de8a86fb306c369915ec44cb292c59baf6084ea2cb4e02 done
+#23 exporting config sha256:6e1acb36b5d58da934b208d138ac34bccaf296d168c4dd59e750ac50111b47c1 done
+#23 exporting attestation manifest sha256:fdacdc6048d7c54378ba0def451976b768ca9ec31e7d18386dde63b0185357a8 0.0s done
+#23 exporting manifest list sha256:fffa9aad98bfe944abe30c301df869427f4b967bd753876f86be2df51d01260e 0.0s done
+#23 naming to docker.io/library/alumno-josbert-rizzo-agente:latest done
+#23 unpacking to docker.io/library/alumno-josbert-rizzo-agente:latest 0.0s done
+#23 DONE 0.2s
+
+#24 [central] resolving provenance for metadata file
+#24 DONE 0.1s
+
+#25 [agente] resolving provenance for metadata file
+#25 DONE 0.0s
+ Image alumno-josbert-rizzo-central Building 
+ Image alumno-josbert-rizzo-agente Building 
+ Image alumno-josbert-rizzo-ollama Building 
+ Image alumno-josbert-rizzo-agente Built 
+ Image alumno-josbert-rizzo-central Built 
+ Image alumno-josbert-rizzo-ollama Built 

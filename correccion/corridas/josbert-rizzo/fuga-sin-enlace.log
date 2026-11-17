@@ -1,0 +1,531 @@
+agente-1    | 2026-11-10 19:17:29,866 INFO sistema/estado -> {"ts":"2026-11-10T19:17:29.866091Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+postgres-1  | The files belonging to this database system will be owned by user "postgres".
+postgres-1  | This user must also own the server process.
+postgres-1  | 
+central-1   | INFO:     Started server process [1]
+central-1   | INFO:     Waiting for application startup.
+postgres-1  | The database cluster will be initialized with locale "en_US.utf8".
+ollama-1    | 2026/11/10 19:17:26 routes.go:1259: INFO server config env="map[CUDA_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY:http://enlace:3128 HTTP_PROXY:http://enlace:3128 NO_PROXY:broker,sim,localhost,postgres,agente,127.0.0.1 OLLAMA_DEBUG:false OLLAMA_FLASH_ATTENTION:false OLLAMA_GPU_OVERHEAD:0 OLLAMA_HOST:http://0.0.0.0:11434 OLLAMA_INTEL_GPU:false OLLAMA_KEEP_ALIVE:5m0s OLLAMA_KV_CACHE_TYPE: OLLAMA_LLM_LIBRARY: OLLAMA_LOAD_TIMEOUT:5m0s OLLAMA_MAX_LOADED_MODELS:0 OLLAMA_MAX_QUEUE:512 OLLAMA_MODELS:/root/.ollama/models OLLAMA_MULTIUSER_CACHE:false OLLAMA_NOHISTORY:false OLLAMA_NOPRUNE:false OLLAMA_NUM_PARALLEL:0 OLLAMA_ORIGINS:[http://localhost https://localhost http://localhost:* https://localhost:* http://127.0.0.1 https://127.0.0.1 http://127.0.0.1:* https://127.0.0.1:* http://0.0.0.0 https://0.0.0.0 http://0.0.0.0:* https://0.0.0.0:* app://* file://* tauri://* vscode-webview://*] OLLAMA_SCHED_SPREAD:false ROCR_VISIBLE_DEVICES: http_proxy: https_proxy: no_proxy:]"
+ollama-1    | time=2026-11-10T19:17:26.722Z level=INFO source=images.go:757 msg="total blobs: 9"
+agente-1    | 2026-11-10 19:17:29,866 INFO conectado al broker (rc=Success)
+ollama-1    | time=2026-11-10T19:17:26.722Z level=INFO source=images.go:764 msg="total unused blobs removed: 0"
+agente-1    | 2026-11-10 19:17:32,912 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:17:32,938 INFO HTTP Request: GET http://sim:8100/api/planta "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:17:37,931 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | [GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+ollama-1    | 
+ollama-1    | [GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ollama-1    |  - using env:	export GIN_MODE=release
+central-1   | INFO:     Application startup complete.
+postgres-1  | The default database encoding has accordingly been set to "UTF8".
+ollama-1    |  - using code:	gin.SetMode(gin.ReleaseMode)
+postgres-1  | The default text search configuration will be set to "english".
+ollama-1    | 
+ollama-1    | [GIN-debug] POST   /api/pull                 --> github.com/ollama/ollama/server.(*Server).PullHandler-fm (5 handlers)
+ollama-1    | [GIN-debug] POST   /api/generate             --> github.com/ollama/ollama/server.(*Server).GenerateHandler-fm (5 handlers)
+agente-1    | 2026-11-10 19:17:42,988 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+postgres-1  | 
+postgres-1  | Data page checksums are disabled.
+postgres-1  | 
+ollama-1    | [GIN-debug] POST   /api/chat                 --> github.com/ollama/ollama/server.(*Server).ChatHandler-fm (5 handlers)
+agente-1    | 2026-11-10 19:17:44,810 INFO recibido planta/recorridas (212 bytes)
+ollama-1    | [GIN-debug] POST   /api/embed                --> github.com/ollama/ollama/server.(*Server).EmbedHandler-fm (5 handlers)
+ollama-1    | [GIN-debug] POST   /api/embeddings           --> github.com/ollama/ollama/server.(*Server).EmbeddingsHandler-fm (5 handlers)
+ollama-1    | [GIN-debug] POST   /api/create               --> github.com/ollama/ollama/server.(*Server).CreateHandler-fm (5 handlers)
+central-1   | INFO:     Uvicorn running on http://0.0.0.0:8200 (Press CTRL+C to quit)
+ollama-1    | time=2026-11-10T19:17:26.723Z level=INFO source=routes.go:1310 msg="Listening on [::]:11434 (version 0.5.4-0-g2ddc32d-dirty)"
+postgres-1  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+ollama-1    | [GIN-debug] POST   /api/push                 --> github.com/ollama/ollama/server.(*Server).PushHandler-fm (5 handlers)
+postgres-1  | creating subdirectories ... ok
+ollama-1    | [GIN-debug] POST   /api/copy                 --> github.com/ollama/ollama/server.(*Server).CopyHandler-fm (5 handlers)
+postgres-1  | selecting dynamic shared memory implementation ... posix
+ollama-1    | [GIN-debug] DELETE /api/delete               --> github.com/ollama/ollama/server.(*Server).DeleteHandler-fm (5 handlers)
+postgres-1  | selecting default max_connections ... 100
+agente-1    | 2026-11-10 19:17:44,831 INFO HTTP Request: GET http://sim:8100/media/audios/NOTA-00001.wav "HTTP/1.1 200 OK"
+ollama-1    | [GIN-debug] POST   /api/show                 --> github.com/ollama/ollama/server.(*Server).ShowHandler-fm (5 handlers)
+ollama-1    | [GIN-debug] POST   /api/blobs/:digest        --> github.com/ollama/ollama/server.(*Server).CreateBlobHandler-fm (5 handlers)
+postgres-1  | selecting default shared_buffers ... 128MB
+ollama-1    | [GIN-debug] HEAD   /api/blobs/:digest        --> github.com/ollama/ollama/server.(*Server).HeadBlobHandler-fm (5 handlers)
+ollama-1    | [GIN-debug] GET    /api/ps                   --> github.com/ollama/ollama/server.(*Server).PsHandler-fm (5 handlers)
+ollama-1    | [GIN-debug] POST   /v1/chat/completions      --> github.com/ollama/ollama/server.(*Server).ChatHandler-fm (6 handlers)
+postgres-1  | selecting default time zone ... Etc/UTC
+ollama-1    | [GIN-debug] POST   /v1/completions           --> github.com/ollama/ollama/server.(*Server).GenerateHandler-fm (6 handlers)
+ollama-1    | [GIN-debug] POST   /v1/embeddings            --> github.com/ollama/ollama/server.(*Server).EmbedHandler-fm (6 handlers)
+agente-1    | 2026-11-10 19:17:46,267 INFO Processing audio with duration 00:11.242
+ollama-1    | [GIN-debug] GET    /v1/models                --> github.com/ollama/ollama/server.(*Server).ListHandler-fm (6 handlers)
+postgres-1  | creating configuration files ... ok
+agente-1    | 2026-11-10 19:17:48,362 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+postgres-1  | running bootstrap script ... ok
+postgres-1  | performing post-bootstrap initialization ... ok
+ollama-1    | [GIN-debug] GET    /v1/models/:model         --> github.com/ollama/ollama/server.(*Server).ShowHandler-fm (6 handlers)
+postgres-1  | initdb: warning: enabling "trust" authentication for local connections
+ollama-1    | [GIN-debug] GET    /                         --> github.com/ollama/ollama/server.(*Server).GenerateRoutes.func1 (5 handlers)
+postgres-1  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1  | syncing data to disk ... ok
+ollama-1    | [GIN-debug] GET    /api/tags                 --> github.com/ollama/ollama/server.(*Server).ListHandler-fm (5 handlers)
+postgres-1  | 
+agente-1    | 2026-11-10 19:17:49,545 INFO HTTP Request: GET http://sim:8100/media/fotos/rotura_descarga/04.jpg "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:17:49,550 WARNING ALERTA DE SEGURIDAD S1 en nota NOTA-00001: Pérdida con proyección de agua a presión
+postgres-1  | 
+postgres-1  | Success. You can now start the database server using:
+ollama-1    | [GIN-debug] GET    /api/version              --> github.com/ollama/ollama/server.(*Server).GenerateRoutes.func2 (5 handlers)
+postgres-1  | 
+postgres-1  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1  | 
+agente-1    | 2026-11-10 19:17:54,497 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+postgres-1  | waiting for server to start....2026-11-10 19:17:27.459 UTC [49] LOG:  starting PostgreSQL 16.15 (Debian 16.15-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit
+agente-1    | 2026-11-10 19:17:59,616 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+postgres-1  | 2026-11-10 19:17:27.462 UTC [49] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+ollama-1    | [GIN-debug] HEAD   /                         --> github.com/ollama/ollama/server.(*Server).GenerateRoutes.func1 (5 handlers)
+postgres-1  | 2026-11-10 19:17:27.470 UTC [52] LOG:  database system was shut down at 2026-11-10 19:17:27 UTC
+postgres-1  | 2026-11-10 19:17:27.476 UTC [49] LOG:  database system is ready to accept connections
+agente-1    | 2026-11-10 19:17:59,865 INFO sistema/estado -> {"ts":"2026-11-10T19:17:59.864775Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+ollama-1    | [GIN-debug] HEAD   /api/tags                 --> github.com/ollama/ollama/server.(*Server).ListHandler-fm (5 handlers)
+agente-1    | 2026-11-10 19:18:04,689 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:18:05,925 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+postgres-1  |  done
+agente-1    | 2026-11-10 19:18:09,315 INFO recibido planta/recorridas (182 bytes)
+agente-1    | 2026-11-10 19:18:09,858 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | [GIN-debug] HEAD   /api/version              --> github.com/ollama/ollama/server.(*Server).GenerateRoutes.func2 (5 handlers)
+agente-1    | 2026-11-10 19:18:12,770 INFO HTTP Request: GET http://sim:8100/api/planta "HTTP/1.1 200 OK"
+ollama-1    | time=2026-11-10T19:17:26.723Z level=INFO source=routes.go:1339 msg="Dynamic LLM libraries" runners="[cpu cpu_avx cpu_avx2 cuda_v11_avx cuda_v12_avx]"
+postgres-1  | server started
+agente-1    | 2026-11-10 19:18:12,773 INFO nota NOTA-00001: audio=True fotos=1 transcripcion='Atención, se rompió algo en la descarga del A1, sale agua a presión para todos lados, me alejé, saqué foto desde lejos.' filas=2 sin_resolver=2
+agente-1    | 2026-11-10 19:18:12,773 INFO sistema/tablet -> 884aeb11-2df0-487a-a751-b6757f378e7d: No encontré ningún equipo para "A1". ¿Podés repetirlo?
+agente-1    | 2026-11-10 19:18:12,810 INFO HTTP Request: GET http://sim:8100/media/audios/NOTA-00006.wav "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:18:12,909 INFO Processing audio with duration 00:05.395
+agente-1    | 2026-11-10 19:18:14,854 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | time=2026-11-10T19:17:26.724Z level=INFO source=gpu.go:226 msg="looking for compatible GPUs"
+agente-1    | 2026-11-10 19:18:15,818 INFO recibido planta/respuestas (282 bytes)
+ollama-1    | time=2026-11-10T19:17:26.730Z level=INFO source=gpu.go:392 msg="no compatible GPUs were discovered"
+ollama-1    | time=2026-11-10T19:17:26.730Z level=INFO source=types.go:131 msg="inference compute" id=0 library=cpu variant=avx2 compute="" driver=0.0 name="" total="15.5 GiB" available="11.1 GiB"
+ollama-1    | time=2026-11-10T19:17:50.457Z level=INFO source=server.go:104 msg="system memory" total="15.5 GiB" free="10.5 GiB" free_swap="4.0 GiB"
+agente-1    | 2026-11-10 19:18:17,156 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+postgres-1  | CREATE DATABASE
+agente-1    | 2026-11-10 19:18:19,900 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:18:20,158 INFO nota NOTA-00006: audio=True fotos=0 transcripcion='¿Listo? ¿La bomba está parada en reserva?' filas=1 sin_resolver=1
+ollama-1    | time=2026-11-10T19:17:50.458Z level=INFO source=memory.go:356 msg="offload to cpu" layers.requested=-1 layers.model=29 layers.offload=0 layers.split="" memory.available="[10.5 GiB]" memory.gpu_overhead="0 B" memory.required.full="1.5 GiB" memory.required.partial="0 B" memory.required.kv="224.0 MiB" memory.required.allocations="[1.5 GiB]" memory.weights.total="976.1 MiB" memory.weights.repeating="793.5 MiB" memory.weights.nonrepeating="182.6 MiB" memory.graph.full="299.8 MiB" memory.graph.partial="482.3 MiB"
+agente-1    | 2026-11-10 19:18:20,159 INFO sistema/tablet -> 56f8a519-fe71-418f-b641-00d29e09455e: ¿A cuál equipo te referís con "la bomba"?
+ollama-1    | time=2026-11-10T19:17:50.459Z level=INFO source=server.go:376 msg="starting llama server" cmd="/usr/lib/ollama/runners/cpu_avx2/ollama_llama_server runner --model /root/.ollama/models/blobs/sha256-183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4 --ctx-size 8192 --batch-size 512 --threads 4 --no-mmap --parallel 4 --port 42121"
+agente-1    | 2026-11-10 19:18:21,121 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+postgres-1  | 
+postgres-1  | 
+ollama-1    | time=2026-11-10T19:17:50.461Z level=INFO source=sched.go:449 msg="loaded runners" count=1
+agente-1    | 2026-11-10 19:18:25,267 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | time=2026-11-10T19:17:50.461Z level=INFO source=server.go:555 msg="waiting for llama runner to start responding"
+ollama-1    | time=2026-11-10T19:17:50.461Z level=INFO source=server.go:589 msg="waiting for server to become available" status="llm server error"
+agente-1    | 2026-11-10 19:18:25,849 INFO sistema/tablet -> a0d36e53-e27c-4d6f-81be-10e805ea8a83: la dos (presión de descarga): la unidad dicha ("bar") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+ollama-1    | time=2026-11-10T19:17:50.467Z level=INFO source=runner.go:945 msg="starting go runner"
+agente-1    | 2026-11-10 19:18:26,110 INFO recibido planta/recorridas (182 bytes)
+postgres-1  | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+agente-1    | 2026-11-10 19:18:26,149 INFO HTTP Request: GET http://sim:8100/media/audios/NOTA-00004.wav "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:18:26,220 INFO Processing audio with duration 00:08.836
+agente-1    | 2026-11-10 19:18:26,323 INFO recibido planta/respuestas (270 bytes)
+postgres-1  | 
+agente-1    | 2026-11-10 19:18:29,863 INFO sistema/estado -> {"ts":"2026-11-10T19:18:29.862909Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+postgres-1  | waiting for server to shut down....2026-11-10 19:17:27.640 UTC [49] LOG:  received fast shutdown request
+postgres-1  | 2026-11-10 19:17:27.643 UTC [49] LOG:  aborting any active transactions
+postgres-1  | 2026-11-10 19:17:27.644 UTC [49] LOG:  background worker "logical replication launcher" (PID 55) exited with exit code 1
+postgres-1  | 2026-11-10 19:17:27.645 UTC [50] LOG:  shutting down
+postgres-1  | 2026-11-10 19:17:27.648 UTC [50] LOG:  checkpoint starting: shutdown immediate
+ollama-1    | time=2026-11-10T19:17:50.470Z level=INFO source=runner.go:946 msg=system info="CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | LLAMAFILE = 1 | AARCH64_REPACK = 1 | cgo(gcc)" threads=4
+postgres-1  | 2026-11-10 19:17:27.698 UTC [50] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.013 s, sync=0.032 s, total=0.053 s; sync files=301, longest=0.002 s, average=0.001 s; distance=4255 kB, estimate=4255 kB; lsn=0/1912108, redo lsn=0/1912108
+postgres-1  | 2026-11-10 19:17:27.704 UTC [49] LOG:  database system is shut down
+postgres-1  |  done
+ollama-1    | time=2026-11-10T19:17:50.471Z level=INFO source=.:0 msg="Server listening on 127.0.0.1:42121"
+ollama-1    | llama_model_loader: loaded meta data with 34 key-value pairs and 338 tensors from /root/.ollama/models/blobs/sha256-183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4 (version GGUF V3 (latest))
+ollama-1    | llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+agente-1    | 2026-11-10 19:18:31,620 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv   0:                       general.architecture str              = qwen2
+agente-1    | 2026-11-10 19:18:32,372 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+postgres-1  | server stopped
+agente-1    | 2026-11-10 19:18:36,650 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+postgres-1  | 
+agente-1    | 2026-11-10 19:18:37,760 INFO recibido planta/respuestas (305 bytes)
+agente-1    | 2026-11-10 19:18:38,689 INFO nota NOTA-00004: audio=True fotos=0 transcripcion='La 2 está en 1610 libras de descarga. El pulmón está en 5 metros.' filas=2 sin_resolver=1
+ollama-1    | llama_model_loader: - kv   1:                               general.type str              = model
+postgres-1  | PostgreSQL init process complete; ready for start up.
+postgres-1  | 
+agente-1    | 2026-11-10 19:18:38,690 INFO sistema/tablet -> b1c838be-4909-431c-946d-9c554e69bde9: la dos (descarga): la unidad dicha ("libras") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+postgres-1  | 2026-11-10 19:17:27.758 UTC [1] LOG:  starting PostgreSQL 16.15 (Debian 16.15-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit
+agente-1    | 2026-11-10 19:18:38,705 INFO sistema/tablet -> 4de26d9e-db4e-48cf-a692-5a7287467c28: Parte armado con lo que entendí. ¿Confirmás todo como está?
+postgres-1  | 2026-11-10 19:17:27.758 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+agente-1    | 2026-11-10 19:18:40,226 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:18:45,840 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:18:47,698 INFO recibido planta/respuestas (326 bytes)
+agente-1    | 2026-11-10 19:18:49,120 INFO HTTP Request: GET http://sim:8100/api/historian/B-102/presion_descarga?desde=2026-09-21T09%3A40%3A00-03%3A00&hasta=2026-11-05T09%3A40%3A00-03%3A00 "HTTP/1.1 200 OK"
+postgres-1  | 2026-11-10 19:17:27.758 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+agente-1    | 2026-11-10 19:18:49,147 INFO sistema/tablet -> 652d93ee-3aad-4eef-bf0b-a0f60c8a0902: la dos (presión de descarga): 120.0 psi está fuera del rango histórico de B-102/presion_descarga (110.8–115.6, últimos 45 días): confirmar con el operador. ¿Confirmás el valor?
+postgres-1  | 2026-11-10 19:17:27.762 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+ollama-1    | llama_model_loader: - kv   2:                               general.name str              = Qwen2.5 1.5B Instruct
+postgres-1  | 2026-11-10 19:17:27.767 UTC [65] LOG:  database system was shut down at 2026-11-10 19:17:27 UTC
+agente-1    | 2026-11-10 19:18:51,494 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv   3:                           general.finetune str              = Instruct
+ollama-1    | llama_model_loader: - kv   4:                           general.basename str              = Qwen2.5
+agente-1    | 2026-11-10 19:18:58,112 INFO recibido planta/respuestas (305 bytes)
+postgres-1  | 2026-11-10 19:17:27.772 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-11-10 19:22:27.823 UTC [63] LOG:  checkpoint starting: time
+postgres-1  | 2026-11-10 19:22:37.693 UTC [63] LOG:  checkpoint complete: wrote 101 buffers (0.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=9.842 s, sync=0.017 s, total=9.870 s; sync files=52, longest=0.005 s, average=0.001 s; distance=489 kB, estimate=489 kB; lsn=0/198C7B8, redo lsn=0/198C748
+ollama-1    | llama_model_loader: - kv   5:                         general.size_label str              = 1.5B
+ollama-1    | llama_model_loader: - kv   6:                            general.license str              = apache-2.0
+ollama-1    | llama_model_loader: - kv   7:                       general.license.link str              = https://huggingface.co/Qwen/Qwen2.5-1...
+agente-1    | 2026-11-10 19:18:58,165 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv   8:                   general.base_model.count u32              = 1
+agente-1    | 2026-11-10 19:18:59,262 INFO recibido planta/recorridas (182 bytes)
+ollama-1    | llama_model_loader: - kv   9:                  general.base_model.0.name str              = Qwen2.5 1.5B
+agente-1    | 2026-11-10 19:18:59,861 INFO sistema/estado -> {"ts":"2026-11-10T19:18:59.861420Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+agente-1    | 2026-11-10 19:19:04,408 INFO recibido planta/respuestas (359 bytes)
+agente-1    | 2026-11-10 19:19:04,486 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  10:          general.base_model.0.organization str              = Qwen
+agente-1    | 2026-11-10 19:19:09,522 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  11:              general.base_model.0.repo_url str              = https://huggingface.co/Qwen/Qwen2.5-1.5B
+ollama-1    | llama_model_loader: - kv  12:                               general.tags arr[str,2]       = ["chat", "text-generation"]
+ollama-1    | llama_model_loader: - kv  13:                          general.languages arr[str,1]       = ["en"]
+ollama-1    | llama_model_loader: - kv  14:                          qwen2.block_count u32              = 28
+agente-1    | 2026-11-10 19:19:11,593 INFO HTTP Request: GET http://sim:8100/api/historian/B-102/presion_diferencial?desde=2026-09-21T13%3A58%3A54.550000-03%3A00&hasta=2026-11-05T13%3A58%3A54.550000-03%3A00 "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  15:                       qwen2.context_length u32              = 32768
+agente-1    | 2026-11-10 19:19:11,597 INFO sistema/tablet -> ffacf2be-c67b-4e1e-a387-670b0a8eaacd: No encontré ningún equipo para "pulmón". ¿Podés repetirlo?
+agente-1    | 2026-11-10 19:19:13,185 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  16:                     qwen2.embedding_length u32              = 1536
+agente-1    | 2026-11-10 19:19:16,657 INFO recibido planta/respuestas (400 bytes)
+agente-1    | 2026-11-10 19:19:16,713 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  17:                  qwen2.feed_forward_length u32              = 8960
+agente-1    | 2026-11-10 19:19:20,517 INFO sistema/tablet -> 9ce5df97-9ff2-4847-920a-4ed7bb985f8e: la dos (presión de descarga): 120.0 psi está fuera del rango histórico de B-102/presion_descarga (110.8–115.6, últimos 45 días): confirmar con el operador. ¿Confirmás el valor?
+ollama-1    | llama_model_loader: - kv  18:                 qwen2.attention.head_count u32              = 12
+agente-1    | 2026-11-10 19:19:20,560 INFO HTTP Request: GET http://sim:8100/media/audios/NOTA-00005.wav "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:19:20,675 INFO Processing audio with duration 00:08.823
+ollama-1    | llama_model_loader: - kv  19:              qwen2.attention.head_count_kv u32              = 2
+ollama-1    | llama_model_loader: - kv  20:                       qwen2.rope.freq_base f32              = 1000000.000000
+ollama-1    | llama_model_loader: - kv  21:     qwen2.attention.layer_norm_rms_epsilon f32              = 0.000001
+ollama-1    | llama_model_loader: - kv  22:                          general.file_type u32              = 15
+agente-1    | 2026-11-10 19:19:29,029 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:19:29,336 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:19:29,856 INFO sistema/estado -> {"ts":"2026-11-10T19:19:29.855905Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+ollama-1    | llama_model_loader: - kv  23:                       tokenizer.ggml.model str              = gpt2
+ollama-1    | llama_model_loader: - kv  24:                         tokenizer.ggml.pre str              = qwen2
+ollama-1    | llama_model_loader: - kv  25:                      tokenizer.ggml.tokens arr[str,151936]  = ["!", "\"", "#", "$", "%", "&", "'", ...
+agente-1    | 2026-11-10 19:19:31,957 INFO recibido planta/respuestas (349 bytes)
+agente-1    | 2026-11-10 19:19:34,521 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  26:                  tokenizer.ggml.token_type arr[i32,151936]  = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+agente-1    | 2026-11-10 19:19:35,677 INFO nota NOTA-00005: audio=True fotos=0 transcripcion='La 1 está en 114 kilos de descarga. El rodamiento me dio 64 grados con la pistola.' filas=2 sin_resolver=1
+agente-1    | 2026-11-10 19:19:35,677 INFO sistema/tablet -> 9f58f020-4c2c-4334-8731-c9f98f95ec1a: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+agente-1    | 2026-11-10 19:19:39,023 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | time=2026-11-10T19:17:50.713Z level=INFO source=server.go:589 msg="waiting for server to become available" status="llm server loading model"
+ollama-1    | llama_model_loader: - kv  27:                      tokenizer.ggml.merges arr[str,151387]  = ["Ġ Ġ", "ĠĠ ĠĠ", "i n", "Ġ t",...
+agente-1    | 2026-11-10 19:19:42,327 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  28:                tokenizer.ggml.eos_token_id u32              = 151645
+ollama-1    | llama_model_loader: - kv  29:            tokenizer.ggml.padding_token_id u32              = 151643
+ollama-1    | llama_model_loader: - kv  30:                tokenizer.ggml.bos_token_id u32              = 151643
+agente-1    | 2026-11-10 19:19:46,655 INFO sistema/tablet -> 03459b9e-a059-4ff3-bf62-fc2964ff9fed: ¿A cuál equipo te referís con "el filtro de la derecha"?
+agente-1    | 2026-11-10 19:19:48,855 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:19:49,652 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:19:51,306 INFO recibido planta/respuestas (409 bytes)
+agente-1    | 2026-11-10 19:19:53,883 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  31:               tokenizer.ggml.add_bos_token bool             = false
+ollama-1    | llama_model_loader: - kv  32:                    tokenizer.chat_template str              = {%- if tools %}\n    {{- '<|im_start|>...
+ollama-1    | llama_model_loader: - kv  33:               general.quantization_version u32              = 2
+ollama-1    | llama_model_loader: - type  f32:  141 tensors
+agente-1    | 2026-11-10 19:19:56,315 INFO HTTP Request: GET http://sim:8100/api/historian/TK-301/presion_diferencial?desde=2026-09-21T13%3A58%3A54.550000-03%3A00&hasta=2026-11-05T13%3A58%3A54.550000-03%3A00 "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:19:56,319 INFO sistema/tablet -> 71a7c9d8-cdcc-4e37-a41e-60fd6ecd4776: la dos (presión de descarga): 1060.0 psi está fuera del rango histórico de B-102/presion_descarga (110.8–115.6, últimos 45 días): confirmar con el operador. ¿Confirmás el valor?
+agente-1    | 2026-11-10 19:19:56,400 INFO recibido planta/respuestas (290 bytes)
+ollama-1    | llama_model_loader: - type q4_K:  168 tensors
+ollama-1    | llama_model_loader: - type q6_K:   29 tensors
+agente-1    | 2026-11-10 19:19:58,500 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llm_load_vocab: special tokens cache size = 22
+ollama-1    | llm_load_vocab: token to piece cache size = 0.9310 MB
+ollama-1    | llm_load_print_meta: format           = GGUF V3 (latest)
+ollama-1    | llm_load_print_meta: arch             = qwen2
+ollama-1    | llm_load_print_meta: vocab type       = BPE
+ollama-1    | llm_load_print_meta: n_vocab          = 151936
+ollama-1    | llm_load_print_meta: n_merges         = 151387
+ollama-1    | llm_load_print_meta: vocab_only       = 0
+agente-1    | 2026-11-10 19:19:59,854 INFO sistema/estado -> {"ts":"2026-11-10T19:19:59.853693Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+agente-1    | 2026-11-10 19:20:05,358 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:20:08,057 INFO sistema/tablet -> 78b6323e-1b20-46db-8d51-ee98d4112d99: ¿A cuál equipo te referís con "el filtro de la izquierda"?
+ollama-1    | llm_load_print_meta: n_ctx_train      = 32768
+agente-1    | 2026-11-10 19:20:10,364 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:20:11,335 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:20:12,713 INFO recibido planta/respuestas (410 bytes)
+agente-1    | 2026-11-10 19:20:15,798 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:20:17,693 INFO recibido planta/respuestas (291 bytes)
+ollama-1    | llm_load_print_meta: n_embd           = 1536
+agente-1    | 2026-11-10 19:20:17,890 INFO sistema/tablet -> 2b64a0b9-f22a-46c9-9e6f-1be2ff84f2a8: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+agente-1    | 2026-11-10 19:20:17,905 INFO sistema/tablet -> 128d0449-a06a-4461-9116-fb9ab48e87f4: No encontré ningún equipo para "A1". ¿Podés repetirlo?
+ollama-1    | llm_load_print_meta: n_layer          = 28
+ollama-1    | llm_load_print_meta: n_head           = 12
+ollama-1    | llm_load_print_meta: n_head_kv        = 2
+ollama-1    | llm_load_print_meta: n_rot            = 128
+ollama-1    | llm_load_print_meta: n_swa            = 0
+agente-1    | 2026-11-10 19:20:21,654 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:20:25,935 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:20:29,712 INFO recibido planta/respuestas (409 bytes)
+ollama-1    | llm_load_print_meta: n_embd_head_k    = 128
+agente-1    | 2026-11-10 19:20:29,854 INFO sistema/estado -> {"ts":"2026-11-10T19:20:29.854004Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+agente-1    | 2026-11-10 19:20:31,274 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: n_embd_head_v    = 128
+agente-1    | 2026-11-10 19:20:32,024 INFO sistema/tablet -> b9ebb638-1313-4350-a4a6-99654c9cfe90: No encontré ningún equipo para "pulmón". ¿Podés repetirlo?
+agente-1    | 2026-11-10 19:20:32,040 INFO sistema/tablet -> 558194df-e875-4ad6-8f08-200f1ea44fe8: ¿A cuál equipo te referís con "el filtro de la izquierda"?
+agente-1    | 2026-11-10 19:20:35,906 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: n_gqa            = 6
+ollama-1    | llm_load_print_meta: n_embd_k_gqa     = 256
+agente-1    | 2026-11-10 19:20:37,790 INFO recibido planta/respuestas (349 bytes)
+ollama-1    | llm_load_print_meta: n_embd_v_gqa     = 256
+ollama-1    | llm_load_print_meta: f_norm_eps       = 0.0e+00
+ollama-1    | llm_load_print_meta: f_norm_rms_eps   = 1.0e-06
+agente-1    | 2026-11-10 19:20:37,838 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: f_clamp_kqv      = 0.0e+00
+ollama-1    | llm_load_print_meta: f_max_alibi_bias = 0.0e+00
+ollama-1    | llm_load_print_meta: f_logit_scale    = 0.0e+00
+ollama-1    | llm_load_print_meta: n_ff             = 8960
+ollama-1    | llm_load_print_meta: n_expert         = 0
+ollama-1    | llm_load_print_meta: n_expert_used    = 0
+ollama-1    | llm_load_print_meta: causal attn      = 1
+agente-1    | 2026-11-10 19:20:40,103 INFO recibido planta/respuestas (400 bytes)
+ollama-1    | llm_load_print_meta: pooling type     = 0
+ollama-1    | llm_load_print_meta: rope type        = 2
+ollama-1    | llm_load_print_meta: rope scaling     = linear
+ollama-1    | llm_load_print_meta: freq_base_train  = 1000000.0
+agente-1    | 2026-11-10 19:20:43,195 INFO recibido planta/respuestas (291 bytes)
+agente-1    | 2026-11-10 19:20:43,261 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: freq_scale_train = 1
+agente-1    | 2026-11-10 19:20:43,556 INFO sistema/tablet -> e98942b8-5bf2-4938-b6f7-c8b76b870cd4: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+ollama-1    | llm_load_print_meta: n_ctx_orig_yarn  = 32768
+agente-1    | 2026-11-10 19:20:46,197 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: rope_finetuned   = unknown
+agente-1    | 2026-11-10 19:20:49,290 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:20:52,983 INFO sistema/tablet -> 5fb5965e-d9d2-4701-bbe9-9aff905483ac: ¿A cuál equipo te referís con "el filtro de la izquierda"?
+ollama-1    | llm_load_print_meta: ssm_d_conv       = 0
+ollama-1    | llm_load_print_meta: ssm_d_inner      = 0
+ollama-1    | llm_load_print_meta: ssm_d_state      = 0
+ollama-1    | llm_load_print_meta: ssm_dt_rank      = 0
+ollama-1    | llm_load_print_meta: ssm_dt_b_c_rms   = 0
+agente-1    | 2026-11-10 19:20:55,322 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: model type       = 1.5B
+agente-1    | 2026-11-10 19:20:56,302 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: model ftype      = Q4_K - Medium
+agente-1    | 2026-11-10 19:20:57,844 INFO recibido planta/respuestas (409 bytes)
+ollama-1    | llm_load_print_meta: model params     = 1.54 B
+agente-1    | 2026-11-10 19:20:59,852 INFO sistema/estado -> {"ts":"2026-11-10T19:20:59.852391Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+ollama-1    | llm_load_print_meta: model size       = 934.69 MiB (5.08 BPW) 
+ollama-1    | llm_load_print_meta: general.name     = Qwen2.5 1.5B Instruct
+ollama-1    | llm_load_print_meta: BOS token        = 151643 '<|endoftext|>'
+agente-1    | 2026-11-10 19:21:00,848 INFO recibido planta/respuestas (290 bytes)
+ollama-1    | llm_load_print_meta: EOS token        = 151645 '<|im_end|>'
+ollama-1    | llm_load_print_meta: EOT token        = 151645 '<|im_end|>'
+ollama-1    | llm_load_print_meta: PAD token        = 151643 '<|endoftext|>'
+agente-1    | 2026-11-10 19:21:00,908 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: LF token         = 148848 'ÄĬ'
+ollama-1    | llm_load_print_meta: FIM PRE token    = 151659 '<|fim_prefix|>'
+agente-1    | 2026-11-10 19:21:02,564 INFO sistema/tablet -> 51c84585-5477-4a2c-9226-caab60b774b0: la dos (presión de descarga): 1060.0 psi está fuera del rango histórico de B-102/presion_descarga (110.8–115.6, últimos 45 días): confirmar con el operador. ¿Confirmás el valor?
+agente-1    | 2026-11-10 19:21:02,581 INFO sistema/tablet -> 0123ab76-89d3-476f-9d66-b6f1aeca22ad: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+agente-1    | 2026-11-10 19:21:06,680 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:21:17,365 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: FIM SUF token    = 151661 '<|fim_suffix|>'
+ollama-1    | llm_load_print_meta: FIM MID token    = 151660 '<|fim_middle|>'
+agente-1    | 2026-11-10 19:21:18,451 INFO sistema/tablet -> de484dcf-8de7-4daf-b0e6-87ed48b6c809: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+ollama-1    | llm_load_print_meta: FIM PAD token    = 151662 '<|fim_pad|>'
+agente-1    | 2026-11-10 19:21:18,466 INFO sistema/tablet -> 954d1687-1e0c-44b8-8376-29f7cc27c62d: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+agente-1    | 2026-11-10 19:21:26,747 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: FIM REP token    = 151663 '<|repo_name|>'
+ollama-1    | llm_load_print_meta: FIM SEP token    = 151664 '<|file_sep|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151643 '<|endoftext|>'
+agente-1    | 2026-11-10 19:21:28,383 INFO recibido planta/respuestas (410 bytes)
+agente-1    | 2026-11-10 19:21:29,842 INFO sistema/estado -> {"ts":"2026-11-10T19:21:29.841617Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+agente-1    | 2026-11-10 19:21:31,213 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: EOG token        = 151645 '<|im_end|>'
+agente-1    | 2026-11-10 19:21:31,298 INFO recibido planta/respuestas (341 bytes)
+agente-1    | 2026-11-10 19:21:33,831 INFO recibido planta/respuestas (409 bytes)
+agente-1    | 2026-11-10 19:21:33,890 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: EOG token        = 151662 '<|fim_pad|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151663 '<|repo_name|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151664 '<|file_sep|>'
+ollama-1    | llm_load_print_meta: max token length = 256
+ollama-1    | llm_load_tensors:          CPU model buffer size =   934.69 MiB
+agente-1    | 2026-11-10 19:21:35,628 INFO recibido planta/respuestas (340 bytes)
+agente-1    | 2026-11-10 19:21:39,191 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_new_context_with_model: n_seq_max     = 4
+agente-1    | 2026-11-10 19:21:40,041 INFO sistema/tablet -> c4423356-f722-47a7-8894-54dc58a68444: ¿A cuál equipo te referís con "el filtro de la izquierda"?
+agente-1    | 2026-11-10 19:21:42,375 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:21:43,804 INFO recibido planta/respuestas (290 bytes)
+ollama-1    | llama_new_context_with_model: n_ctx         = 8192
+ollama-1    | llama_new_context_with_model: n_ctx_per_seq = 2048
+agente-1    | 2026-11-10 19:21:44,361 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:21:47,659 INFO sistema/tablet -> bfd7c966-c02a-40c9-b1fc-485d4a12d076: Parte armado con lo que entendí. ¿Confirmás todo como está?
+agente-1    | 2026-11-10 19:21:50,166 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_new_context_with_model: n_batch       = 2048
+agente-1    | 2026-11-10 19:21:50,895 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llama_new_context_with_model: n_ubatch      = 512
+ollama-1    | llama_new_context_with_model: flash_attn    = 0
+agente-1    | 2026-11-10 19:21:52,943 INFO recibido planta/respuestas (306 bytes)
+ollama-1    | llama_new_context_with_model: freq_base     = 1000000.0
+ollama-1    | llama_new_context_with_model: freq_scale    = 1
+ollama-1    | llama_new_context_with_model: n_ctx_per_seq (2048) < n_ctx_train (32768) -- the full capacity of the model will not be utilized
+agente-1    | 2026-11-10 19:21:55,514 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_kv_cache_init:        CPU KV buffer size =   224.00 MiB
+ollama-1    | llama_new_context_with_model: KV self size  =  224.00 MiB, K (f16):  112.00 MiB, V (f16):  112.00 MiB
+agente-1    | 2026-11-10 19:21:57,241 INFO sistema/tablet -> 0d5eb181-bd8e-40ef-9996-59a37f3abfc1: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+ollama-1    | llama_new_context_with_model:        CPU  output buffer size =     2.34 MiB
+agente-1    | 2026-11-10 19:21:59,830 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:21:59,853 INFO sistema/estado -> {"ts":"2026-11-10T19:21:59.853044Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+ollama-1    | llama_new_context_with_model:        CPU compute buffer size =   302.75 MiB
+ollama-1    | llama_new_context_with_model: graph nodes  = 986
+agente-1    | 2026-11-10 19:22:03,248 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_new_context_with_model: graph splits = 1
+ollama-1    | time=2026-11-10T19:17:53.228Z level=INFO source=server.go:594 msg="llama runner started in 2.77 seconds"
+agente-1    | 2026-11-10 19:22:07,394 INFO sistema/tablet -> d2309e91-ddce-442c-a834-defdd61fbf8e: ¿A cuál equipo te referís con "el filtro de la izquierda"?
+ollama-1    | llama_model_loader: loaded meta data with 34 key-value pairs and 338 tensors from /root/.ollama/models/blobs/sha256-183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4 (version GGUF V3 (latest))
+agente-1    | 2026-11-10 19:22:07,410 INFO sistema/tablet -> 325e5f9b-1de4-4218-99ca-52b1f9766f9f: No encontré ningún equipo para "pulmón". ¿Podés repetirlo?
+agente-1    | 2026-11-10 19:22:08,456 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:22:12,020 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: Dumping metadata keys/values. Note: KV overrides do not apply in this output.
+ollama-1    | llama_model_loader: - kv   0:                       general.architecture str              = qwen2
+ollama-1    | llama_model_loader: - kv   1:                               general.type str              = model
+agente-1    | 2026-11-10 19:22:14,555 INFO recibido planta/respuestas (409 bytes)
+ollama-1    | llama_model_loader: - kv   2:                               general.name str              = Qwen2.5 1.5B Instruct
+ollama-1    | llama_model_loader: - kv   3:                           general.finetune str              = Instruct
+ollama-1    | llama_model_loader: - kv   4:                           general.basename str              = Qwen2.5
+agente-1    | 2026-11-10 19:22:15,632 INFO recibido planta/respuestas (290 bytes)
+agente-1    | 2026-11-10 19:22:17,232 INFO sistema/tablet -> 203b0635-817a-4ce5-8737-0c645746273a: ¿A cuál equipo te referís con "el filtro de la izquierda"?
+agente-1    | 2026-11-10 19:22:19,071 INFO recibido planta/respuestas (400 bytes)
+agente-1    | 2026-11-10 19:22:19,132 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:22:20,300 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv   5:                         general.size_label str              = 1.5B
+agente-1    | 2026-11-10 19:22:24,670 INFO recibido planta/respuestas (291 bytes)
+agente-1    | 2026-11-10 19:22:24,721 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:22:27,299 INFO sistema/tablet -> f3bd0b18-eaf5-44e5-8bdf-0c9a5be9bb16: la dos (presión de descarga): la unidad dicha ("kg/cm2") no coincide con el manómetro local de B-102 (psi): confirmar con el operador. ¿Confirmás el valor?
+ollama-1    | llama_model_loader: - kv   6:                            general.license str              = apache-2.0
+agente-1    | 2026-11-10 19:22:27,316 INFO sistema/tablet -> f4b2a1fd-201c-4de8-ba80-93086d1918b9: Parte armado con lo que entendí. ¿Confirmás todo como está?
+agente-1    | 2026-11-10 19:22:27,330 INFO sistema/tablet -> 65d58151-1f51-4c64-98ff-2eb307680c35: Parte armado con lo que entendí. ¿Confirmás todo como está?
+agente-1    | 2026-11-10 19:22:27,346 INFO sistema/tablet -> 7ea0061e-6940-4f43-bbb1-c3a177e35121: Parte armado con lo que entendí. ¿Confirmás todo como está?
+ollama-1    | llama_model_loader: - kv   7:                       general.license.link str              = https://huggingface.co/Qwen/Qwen2.5-1...
+agente-1    | 2026-11-10 19:22:29,853 INFO sistema/estado -> {"ts":"2026-11-10T19:22:29.852980Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+ollama-1    | llama_model_loader: - kv   8:                   general.base_model.count u32              = 1
+ollama-1    | llama_model_loader: - kv   9:                  general.base_model.0.name str              = Qwen2.5 1.5B
+ollama-1    | llama_model_loader: - kv  10:          general.base_model.0.organization str              = Qwen
+agente-1    | 2026-11-10 19:22:36,557 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  11:              general.base_model.0.repo_url str              = https://huggingface.co/Qwen/Qwen2.5-1.5B
+agente-1    | 2026-11-10 19:22:38,580 INFO recibido planta/respuestas (316 bytes)
+agente-1    | 2026-11-10 19:22:39,661 INFO HTTP Request: POST http://ollama:11434/api/chat "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  12:                               general.tags arr[str,2]       = ["chat", "text-generation"]
+agente-1    | 2026-11-10 19:22:42,365 INFO recibido planta/respuestas (400 bytes)
+agente-1    | 2026-11-10 19:22:43,101 INFO recibido planta/respuestas (305 bytes)
+ollama-1    | llama_model_loader: - kv  13:                          general.languages arr[str,1]       = ["en"]
+agente-1    | 2026-11-10 19:22:45,097 INFO recibido planta/respuestas (409 bytes)
+ollama-1    | llama_model_loader: - kv  14:                          qwen2.block_count u32              = 28
+ollama-1    | llama_model_loader: - kv  15:                       qwen2.context_length u32              = 32768
+agente-1    | 2026-11-10 19:22:45,157 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  16:                     qwen2.embedding_length u32              = 1536
+ollama-1    | llama_model_loader: - kv  17:                  qwen2.feed_forward_length u32              = 8960
+ollama-1    | llama_model_loader: - kv  18:                 qwen2.attention.head_count u32              = 12
+agente-1    | 2026-11-10 19:22:47,631 INFO sistema/tablet -> 5213cc3d-3292-4357-8d91-d3d2a3468060: ¿A cuál equipo te referís con "el filtro de la izquierda"?
+agente-1    | 2026-11-10 19:22:47,647 INFO parte PARTE-NOTA-00004 confirmado (consumo: 6 pasos, 2590 tokens)
+agente-1    | 2026-11-10 19:22:47,647 INFO sistema/eventos -> EVT-PARTE-PARTE-NOTA-00004 (SinNovedad)
+ollama-1    | llama_model_loader: - kv  19:              qwen2.attention.head_count_kv u32              = 2
+ollama-1    | llama_model_loader: - kv  20:                       qwen2.rope.freq_base f32              = 1000000.000000
+ollama-1    | llama_model_loader: - kv  21:     qwen2.attention.layer_norm_rms_epsilon f32              = 0.000001
+ollama-1    | llama_model_loader: - kv  22:                          general.file_type u32              = 15
+ollama-1    | llama_model_loader: - kv  23:                       tokenizer.ggml.model str              = gpt2
+agente-1    | 2026-11-10 19:22:47,662 INFO parte PARTE-NOTA-00001 confirmado (consumo: 6 pasos, 2382 tokens)
+ollama-1    | llama_model_loader: - kv  24:                         tokenizer.ggml.pre str              = qwen2
+agente-1    | 2026-11-10 19:22:47,662 INFO sistema/eventos -> EVT-PARTE-PARTE-NOTA-00001 (SinNovedad)
+agente-1    | 2026-11-10 19:22:47,676 INFO sistema/tablet -> 21337cda-affc-44af-96d9-a670170525d5: No encontré ningún equipo para "rodamiento". ¿Podés repetirlo?
+agente-1    | 2026-11-10 19:22:51,343 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  25:                      tokenizer.ggml.tokens arr[str,151936]  = ["!", "\"", "#", "$", "%", "&", "'", ...
+agente-1    | 2026-11-10 19:22:54,521 INFO recibido planta/respuestas (409 bytes)
+agente-1    | 2026-11-10 19:22:54,523 INFO sistema/tablet -> 8a233b9a-d1d6-45cf-bf22-fec7a69fd937: No encontré ningún equipo para "rodamiento". ¿Podés repetirlo?
+agente-1    | 2026-11-10 19:22:56,684 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  26:                  tokenizer.ggml.token_type arr[i32,151936]  = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...
+agente-1    | 2026-11-10 19:22:57,922 INFO recibido planta/respuestas (291 bytes)
+ollama-1    | llama_model_loader: - kv  27:                      tokenizer.ggml.merges arr[str,151387]  = ["Ġ Ġ", "ĠĠ ĠĠ", "i n", "Ġ t",...
+agente-1    | 2026-11-10 19:22:57,923 INFO sistema/tablet -> d9395bd9-bfbc-45ce-add4-b5c0c1451a8a: Parte armado con lo que entendí. ¿Confirmás todo como está?
+ollama-1    | llama_model_loader: - kv  28:                tokenizer.ggml.eos_token_id u32              = 151645
+ollama-1    | llama_model_loader: - kv  29:            tokenizer.ggml.padding_token_id u32              = 151643
+ollama-1    | llama_model_loader: - kv  30:                tokenizer.ggml.bos_token_id u32              = 151643
+agente-1    | 2026-11-10 19:22:59,049 INFO recibido planta/respuestas (409 bytes)
+agente-1    | 2026-11-10 19:22:59,050 INFO sistema/tablet -> e0d86be2-b0ea-47f9-9b89-8959657f799c: Parte armado con lo que entendí. ¿Confirmás todo como está?
+agente-1    | 2026-11-10 19:22:59,852 INFO sistema/estado -> {"ts":"2026-11-10T19:22:59.852174Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+agente-1    | 2026-11-10 19:23:02,516 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llama_model_loader: - kv  31:               tokenizer.ggml.add_bos_token bool             = false
+agente-1    | 2026-11-10 19:23:04,608 INFO recibido planta/respuestas (409 bytes)
+ollama-1    | llama_model_loader: - kv  32:                    tokenizer.chat_template str              = {%- if tools %}\n    {{- '<|im_start|>...
+agente-1    | 2026-11-10 19:23:04,610 INFO parte PARTE-NOTA-00005 confirmado (consumo: 6 pasos, 2505 tokens)
+ollama-1    | llama_model_loader: - kv  33:               general.quantization_version u32              = 2
+agente-1    | 2026-11-10 19:23:04,651 INFO HTTP Request: GET http://sim:8100/api/historian/B-102/presion_descarga?desde=2026-11-05T10%3A00%3A17.044444-03%3A00&hasta=2026-11-05T14%3A00%3A17.044444-03%3A00 "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:23:04,654 INFO sistema/eventos -> EVT-PARTE-PARTE-NOTA-00005 (Escalado)
+agente-1    | 2026-11-10 19:23:06,174 INFO recibido planta/respuestas (331 bytes)
+ollama-1    | llama_model_loader: - type  f32:  141 tensors
+ollama-1    | llama_model_loader: - type q4_K:  168 tensors
+ollama-1    | llama_model_loader: - type q6_K:   29 tensors
+agente-1    | 2026-11-10 19:23:06,176 INFO parte PARTE-NOTA-00006 confirmado (consumo: 6 pasos, 2298 tokens)
+agente-1    | 2026-11-10 19:23:06,176 INFO sistema/eventos -> EVT-PARTE-PARTE-NOTA-00006 (SinNovedad)
+ollama-1    | llm_load_vocab: special tokens cache size = 22
+ollama-1    | llm_load_vocab: token to piece cache size = 0.9310 MB
+ollama-1    | llm_load_print_meta: format           = GGUF V3 (latest)
+agente-1    | 2026-11-10 19:23:07,712 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:23:12,758 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:23:17,828 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:23:22,860 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: arch             = qwen2
+ollama-1    | llm_load_print_meta: vocab type       = BPE
+ollama-1    | llm_load_print_meta: n_vocab          = 151936
+ollama-1    | llm_load_print_meta: n_merges         = 151387
+ollama-1    | llm_load_print_meta: vocab_only       = 1
+agente-1    | 2026-11-10 19:23:27,892 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: model type       = ?B
+ollama-1    | llm_load_print_meta: model ftype      = all F32
+ollama-1    | llm_load_print_meta: model params     = 1.54 B
+ollama-1    | llm_load_print_meta: model size       = 934.69 MiB (5.08 BPW) 
+agente-1    | 2026-11-10 19:23:29,852 INFO sistema/estado -> {"ts":"2026-11-10T19:23:29.851589Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+agente-1    | 2026-11-10 19:23:32,925 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:23:37,956 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: general.name     = Qwen2.5 1.5B Instruct
+agente-1    | 2026-11-10 19:23:42,994 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: BOS token        = 151643 '<|endoftext|>'
+ollama-1    | llm_load_print_meta: EOS token        = 151645 '<|im_end|>'
+ollama-1    | llm_load_print_meta: EOT token        = 151645 '<|im_end|>'
+agente-1    | 2026-11-10 19:23:48,024 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: PAD token        = 151643 '<|endoftext|>'
+ollama-1    | llm_load_print_meta: LF token         = 148848 'ÄĬ'
+agente-1    | 2026-11-10 19:23:53,060 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:23:58,089 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:23:59,851 INFO sistema/estado -> {"ts":"2026-11-10T19:23:59.851150Z","sistema":"josbert-rizzo","enlace_ok":true,"pendientes_sincronizar":0}
+ollama-1    | llm_load_print_meta: FIM PRE token    = 151659 '<|fim_prefix|>'
+agente-1    | 2026-11-10 19:24:03,127 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: FIM SUF token    = 151661 '<|fim_suffix|>'
+agente-1    | 2026-11-10 19:24:08,159 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+agente-1    | 2026-11-10 19:24:13,184 INFO HTTP Request: GET http://sim:8100/api/estado "HTTP/1.1 200 OK"
+ollama-1    | llm_load_print_meta: FIM MID token    = 151660 '<|fim_middle|>'
+ollama-1    | llm_load_print_meta: FIM PAD token    = 151662 '<|fim_pad|>'
+ollama-1    | llm_load_print_meta: FIM REP token    = 151663 '<|repo_name|>'
+ollama-1    | llm_load_print_meta: FIM SEP token    = 151664 '<|file_sep|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151643 '<|endoftext|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151645 '<|im_end|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151662 '<|fim_pad|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151663 '<|repo_name|>'
+ollama-1    | llm_load_print_meta: EOG token        = 151664 '<|file_sep|>'
+ollama-1    | llm_load_print_meta: max token length = 256
+ollama-1    | llama_model_load: vocab only - skipping tensors
+ollama-1    | [GIN] 2026/11/10 - 19:18:12 | 200 | 22.398867867s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:18:20 | 200 |  3.767844346s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:18:25 | 200 |  5.668749759s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:18:38 | 200 |  7.687063709s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:18:48 | 200 | 10.134415776s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:19:11 | 200 | 22.366822754s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:19:20 | 200 |  8.897814003s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:19:35 | 200 |  9.112759921s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:19:46 | 200 | 10.959026059s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:19:56 | 200 |   9.56138975s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:20:08 | 200 | 11.714539518s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:20:17 | 200 |   9.81171529s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:20:32 | 200 | 14.100325501s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:20:43 | 200 | 11.497314931s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:20:52 | 200 |  9.405165743s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:21:02 | 200 |  9.542402366s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:21:18 | 200 | 15.863768086s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:21:40 | 200 | 11.648848938s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:21:47 | 200 |  7.602706397s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:21:57 | 200 |  9.558220158s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:22:07 | 200 | 10.129982256s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:22:17 | 200 |   9.80212411s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:22:27 | 200 | 10.037825274s |      172.20.0.6 | POST     "/api/chat"
+ollama-1    | [GIN] 2026/11/10 - 19:22:47 | 200 |  9.042354445s |      172.20.0.6 | POST     "/api/chat"
