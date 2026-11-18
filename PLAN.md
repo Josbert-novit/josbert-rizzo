@@ -417,4 +417,254 @@ Ver `../academia2026-tp/docs/contrato.md` para el detalle de redes y tópicos.
 
 - Cada fase se cierra con un commit propio.
 - Avisame cuando quieras empezar una fase y seguimos paso a paso desde ahí.
+
+---
+
+# Plan de resolución — Entrega 2 (TP Academia Novit 2026)
+
+> Vigencia: cubre la **Entrega 2** (Anexo "Academia 2026 - Anexo Entrega 2.docx"), módulos 3.1 a
+> 3.5 + los bloques C (análisis y borrador de orden), D (reglas de aprobación) y G (cierre y
+> certificación) del enunciado completo. Se verifica con `--escenarios tormenta-perfecta sin-luz
+> contratista`, más `fuga-sin-enlace` para el caso de daño estructural. Puntúa D1, D2, F3, G1;
+> elimina `aprobacion_indebida`. G2/G3 están `activo: false` en `rubrica.yaml` (se revisan a
+> mano, no suman), pero igual se implementan completos porque el anexo los pide.
+>
+> Entrega 1 (62.0/100, aprobada) queda tal cual en `main`. Este trabajo va en la rama
+> **`entrega-2`** (creada desde `main`). Se decide con el usuario cuándo mergear — nunca se
+> commitea ni se pushea sin que lo pida explícitamente cada vez (regla vigente desde Entrega 1).
+> Trabajar en vivo contra el stack real (los dos `docker compose up -d --build`) en cada fase, no
+> solo con tests + fakes: en Entrega 1, 19 de 23 bugs reales solo aparecieron probando así.
+
+## Decisiones de diseño ya tomadas (no volver a discutir salvo que algo las contradiga en la práctica)
+
+1. **No hay tópico MQTT para decisiones humanas** (aprobar/rechazar/cerrar/certificar) — el
+   contrato (`academia2026-tp/contrato/planta_contrato/__init__.py`) no lo define y
+   `correccion/README.md` lo confirma como hueco a cargo del alumno. Se resuelve con una
+   **API propia** (`central.py`, ya corre en `:8200`), respaldada en Postgres. El anexo acepta
+   "CLI, API o web" — se elige API (curl-documentada en el README), sin UI gráfica.
+2. **`evaluar_reglas()` (Fase 9) es la única función que escribe `Aprobada`/`PendienteAprobacion`.**
+   Ni el análisis LLM (Fase 10) ni el revisor (Fase 11) deciden el estado final — evita
+   `aprobacion_indebida` por diseño, no por parche.
+3. **Modelo de visión**: NVIDIA NIM `meta/llama-3.2-90b-vision-instruct` vía
+   `https://integrate.api.nvidia.com/v1` (API compatible OpenAI), con `NVIDIA_API_KEY` en
+   `.env`. Justificación en `INFORME.md` (Fase 15), mismo criterio que Entrega 1: el análisis de
+   fotos no es crítico en tiempo real (el anexo dice explícitamente que con el enlace caído queda
+   en cola y la alerta de seguridad no depende de él), así que una llamada a la nube es aceptable
+   acá aunque todo lo demás sea local. **Falta la API key** — avisar al usuario cuándo hace falta
+   para probar en vivo (Fase 13), no antes.
+4. Umbrales y parámetros exactos a usar (sacados de `academia2026-tp/correccion/rubrica.yaml`,
+   para que coincidan con lo que el corrector va a medir):
+   `costo_max_usd=2500` (regla: aprueba si `costo < 2500`), `almacen="yacimiento"`,
+   `siempre_pendiente={"fuga-sin-enlace": ["B-101"]}`, `tareas_de_inspeccion=["I-VIB", "I-VAL"]`,
+   `fallas_ignoradas=["F10"]`.
+5. `src/sistema/datos/materiales.yaml` **no se toca**: ya tiene los casos límite del anexo
+   (`T-B-VAL` USD 1900, `TX-ROD-CIG` stock 0 en yacimiento, tareas no estándar con `ejecutor:
+   contratista`).
+6. Todo paso nuevo que llame a un LLM, a la nube (visión) o a Postgres dentro de `agente.py`
+   sigue el patrón `_pool_notas`/`_vigilar_corte` que ya existe (pool de 1 worker + hilo vigía
+   con timeout) — **nunca** esperar sincrónicamente dentro de `on_message`, es el bug más caro
+   que hubo en Entrega 1 (ver `BUGS.md` #22).
+
+## Fase 7 — Setup de Entrega 2
+
+- [ ] 7.1 Crear la rama: `git checkout -b entrega-2` desde `main` limpio.
+- [ ] 7.2 `.env.example`: agregar `NVIDIA_API_KEY=` (vacío) y
+  `NVIDIA_MODELO_VISION=meta/llama-3.2-90b-vision-instruct`.
+- [ ] 7.3 `src/sistema/config.py`: agregar `nvidia_api_key = os.getenv("NVIDIA_API_KEY")` y
+  `nvidia_modelo_vision = os.getenv("NVIDIA_MODELO_VISION") or "meta/llama-3.2-90b-vision-instruct"`
+  (mismo patrón que `rag_modelo_embeddings`).
+- [ ] 7.4 Actualizar la nota de vigencia al principio de este archivo (la de Entrega 1) para que
+  diga que Entrega 2 ya está en curso, con link a esta sección.
+
+## Fase 8 — Orquestación explícita (3.1, 3.2)
+
+- [ ] 8.1 Nuevo `src/sistema/procesamiento/ordenes.py`: la función explícita del workflow,
+  `procesar_evento_escalado(evento, ...) -> OrdenSistema`, que llama en orden fijo:
+  `analizar()` (Fase 10) → `revisar()` (Fase 11) → `evaluar_reglas()` (Fase 9) → arma el
+  `OrdenSistema` final con `estado=Aprobada` o `PendienteAprobacion` + `motivo`. Es un router por
+  pasos, no un agente libre: el LLM solo decide contenido (causa probable, tareas propuestas),
+  nunca el estado de aprobación.
+- [ ] 8.2 `agente.py`: el evento `Escalado` que ya publican `evaluar_parte`/`DetectorSensores`
+  (Fase 2, sin tocar) dispara `ordenes.procesar_evento_escalado` — seguir el patrón
+  `_procesar_nota_con_corte`/`_vigilar_corte` (pool de 1 worker + hilo vigía), **no** llamarlo
+  sincrónicamente dentro de `on_message`.
+- [ ] 8.3 `agente.py`: agregar la rama que falta en `on_message` para `Topicos.CIERRES` (hoy no
+  existe ninguna) — por ahora solo loguear y validar el modelo; la lógica real es Fase 14.
+- [ ] 8.4 README: diagrama ASCII (mismo estilo que el árbol de `src/sistema/` que ya hay)
+  mostrando qué es workflow fijo (router, reglas, persistencia, publish) y qué usa LLM (análisis,
+  revisor) — para cumplir el pedido explícito del anexo ("diagrama en el README que muestre qué
+  parte es workflow fijo y qué parte es agente").
+
+## Fase 9 — Reglas de aprobación en código (D)
+
+- [ ] 9.1 Nuevo `src/sistema/procesamiento/reglas_aprobacion.py`:
+  ```python
+  def evaluar_reglas(
+      borrador: OrdenSistema, catalogo: ..., disponibilidad_reserva: bool,
+      danio_estructural: bool = False, *, costo_max_usd=2500, almacen="yacimiento",
+      siempre_pendiente: frozenset[str] = frozenset(),
+  ) -> list[str]:  # motivos; vacía = aprueba
+  ```
+  Las 5 reglas del anexo + el override de daño estructural:
+  1. tarea estándar (`tareas` contra `materiales.tareas_estandar()`/`tareas_no_estandar()`);
+  2. continuidad de inyección (si `detiene_equipo` y `not disponibilidad_reserva` → falla);
+  3. repuestos: cada `codigo` en `materiales.lista_materiales(equipo)` y `cantidad <=
+     stock.yacimiento` (vía `materiales.repuesto(codigo)`);
+  4. costo total `sum(costo_usd * cantidad)` `< costo_max_usd`;
+  5. `ejecutor == "propio"`;
+  6. `equipo in siempre_pendiente` o `danio_estructural` → siempre falla (revisión humana
+     obligatoria), independiente de las otras 5.
+  Devuelve la lista de motivos (vacía ⇒ `Aprobada`); el caller (Fase 8) arma el `motivo` string
+  para la orden si la lista no está vacía.
+- [ ] 9.2 `disponibilidad_reserva`: función auxiliar que llama a `http.estado()` (`/api/estado`,
+  ya existe en `PlantaHTTP`) y mira `bombas[]` — hay reserva si algún otro tag del mismo grupo
+  (mismo prefijo, p. ej. `B-101/102/103`) tiene `estado == "parada"`. Verificar contra
+  `academia2026-tp/planta/sim/planta_sim/modelo.py` (campo `Bomba.estado`: `marcha | parada |
+  mantenimiento | disparo`) si el agrupamiento por prefijo no alcanza.
+- [ ] 9.3 Tests `tests/test_reglas_aprobacion.py`, casos límite explícitos del anexo: costo USD
+  2499 y 2500 (límite exacto, `<` no `<=`), `T-B-VAL` (USD 1900, aprueba por costo),
+  `TX-ROD-CIG` (stock 0 en yacimiento, siempre falla por repuestos), reserva no disponible
+  (todas las bombas del grupo en `marcha`/`disparo`/`mantenimiento`), `ejecutor="contratista"`,
+  override `siempre_pendiente={"B-101"}` y `danio_estructural=True` (fuerza pendiente aunque las
+  otras 5 reglas pasen).
+
+## Fase 10 — Análisis y borrador de orden (C)
+
+- [ ] 10.1 Nuevo `src/sistema/llm/analisis.py`: reúne evidencia para un evento `Escalado` —
+  parte confirmado (`parte.json` en disco, vía lo que ya guarda `guardar_parte`), tendencia del
+  historian (`http.historial(tag, variable, desde, hasta)`, ya existe en `PlantaHTTP`), manuales
+  (`rag.buscar.citas(embeddings, pregunta, k=..., equipo=...)`, ya filtra `vigente`), traducción
+  de código de falla (`rag.fallas.TraductorFallas`, ya existe), historial de órdenes repetidas en
+  el mismo equipo (`http.historial_ordenes(equipo=...)`, ya existe).
+- [ ] 10.2 Salida estructurada (Pydantic `extra="forbid"`, mismo patrón que `FilasExtraidas` de
+  4.x): `Diagnostico` (causas probables ordenadas, cada una con evidencia + cita + "qué falta
+  para confirmarla" si la evidencia no alcanza) + `BorradorOrden` (tareas del catálogo o
+  `NO-ESTANDAR`, con `detiene_equipo`/`ejecutor`/`repuestos` copiados del catálogo de la tarea
+  elegida vía `materiales.py`, `evento_ids=[evento.id]`).
+- [ ] 10.3 Casos especiales del anexo a cablear explícitamente (no dejar que el LLM "decida"
+  esto solo, darle la regla en el prompt o en código alrededor):
+  - F09 (cavitación): la causa raíz puede estar en otro equipo (filtro/tanque aguas arriba);
+  - F10 (sensor con deriva): no genera orden (ya está en `fallas_ignoradas`, Fase 9 lo filtra
+    antes de llegar acá si corresponde, pero el análisis tampoco debería proponer una);
+  - evidencia insuficiente → tarea de inspección (`I-VIB`/`I-VAL`), nunca inventar un repuesto
+    sin evidencia.
+  - lógica de "causa que se repite cambia la causa probable" contra `historial_ordenes`: B-101
+    con vibración que no se fue cambiando válvulas → mirar el acople; B-103 con empaquetadura
+    que dura semanas → émbolo rayado; válvulas gastadas en dos bombas en pocos días → cartucho
+    roto en F-201B; B-102 que cavita → filtro primario colmatado; consumo de aceite de B-102 →
+    retén del piñón.
+- [ ] 10.4 `ChatOllama` lazy + `with_structured_output`, igual que `Extractor` (Protocol
+  `ChatEstructurado` para poder inyectar un fake en tests); reusa `ConsumoTokens`/
+  `verificar_presupuesto` de `llm/control.py` tal cual, mismo tope de pasos.
+- [ ] 10.5 Tests `tests/test_analisis.py` con un fake `ChatEstructurado` (mismo patrón que
+  `test_extraccion.py`), cubriendo los 5 casos de causa-repetida de 10.3 y los dos casos
+  especiales (F09, F10).
+
+## Fase 11 — Revisor
+
+- [ ] 11.1 `revisar_borrador(borrador, citas, materiales) -> list[str]` (motivos, no un bloqueo
+  indefinido): cada cita que devolvió el análisis debe existir y estar vigente — reusar
+  `rag.buscar.buscar`/`citas` contra `rag_fragmentos`, no reimplementar la búsqueda; cada
+  repuesto propuesto debe estar en `materiales.lista_materiales(equipo)`.
+- [ ] 11.2 Si falla: un reintento acotado del análisis (mismo tope de pasos de `ConsumoTokens`,
+  no un bucle sin límite); agotado el tope, la orden queda con una tarea de inspección y un
+  motivo explícito en vez de publicar una cita o repuesto no verificado.
+- [ ] 11.3 Tests `tests/test_revisor.py`: cita inventada, cita no vigente, repuesto fuera de
+  catálogo, caso que sí pasa.
+
+## Fase 12 — Persistencia y aprobación humana durable (3.3, 3.5)
+
+- [ ] 12.1 Nuevo `src/sistema/persistencia/ordenes.py`, mismo esqueleto que `memoria.py`: tabla
+  `ordenes` (todas las columnas de `OrdenSistema` + `pendiente_publicar BOOLEAN NOT NULL DEFAULT
+  true`, `actualizado_en TIMESTAMPTZ`), UPSERT por `id` (idempotente, como exige el contrato:
+  "cada publicación es el estado actual de la orden"). Funciones: `guardar(conn, orden)`,
+  `cargar_todas(conn) -> list[OrdenSistema]`, `marcar_publicada(conn, id)`,
+  `pendientes_de_publicar(conn) -> list[OrdenSistema]`.
+- [ ] 12.2 `agente.py`: `_cargar_ordenes_pendientes()` al arrancar (igual que
+  `_cargar_dialogos_pendientes`, best-effort si Postgres no está listo) + un hilo de
+  reconciliación tipo `publicar_estado` (cada 5 s reales — mismo número que documenta
+  `academia2026-tp/docs/operacion-entrega.md` para sincronizar decisiones) que busca
+  `pendientes_de_publicar`, publica `OrdenSistema` en `sistema/ordenes` y llama
+  `marcar_publicada`. Esto es lo que hace sobrevivir un corte de luz (F3): el estado vive en
+  Postgres, no en memoria del proceso ni en el broker.
+- [ ] 12.3 `interfaces/central.py`: pasar de leer archivos a leer/escribir `persistencia.ordenes`
+  (Postgres). Endpoints nuevos:
+  - `GET /api/ordenes` y `GET /api/ordenes/pendientes` (planificador);
+  - `POST /api/ordenes/{id}/aprobar` y `/rechazar` (planificador; `rechazar` exige `motivo`);
+  - `POST /api/ordenes/{id}/cerrar` (supervisor, trabajo propio);
+  - `POST /api/ordenes/{id}/certificar` (inspector; `habilita`, `monto_habilita_usd`) y
+    `/observar` (inspector; `motivo`).
+  Cada POST solo cambia `estado` + `pendiente_publicar=true`; **nunca** re-decide
+  `Aprobada`/`PendienteAprobacion` (esa decisión ya la tomó la Fase 9 — el humano solo avanza un
+  `PendienteAprobacion` ya existente, cierra o certifica, no "arregla" una orden que las reglas
+  ya rechazaron).
+- [ ] 12.4 README: documentar los endpoints nuevos con ejemplos `curl`, igual que ya se
+  documentan los de la planta.
+- [ ] 12.5 Tests: `tests/test_ordenes_persistencia.py` (UPSERT/recarga, mismo esqueleto que
+  `test_memoria.py`), `tests/test_central_ordenes.py` (endpoints).
+
+## Fase 13 — Multimodal y cola sin enlace
+
+- [ ] 13.1 Nuevo `src/sistema/llm/vision.py`: cliente NIM de NVIDIA (`NVIDIA_API_KEY`/
+  `NVIDIA_MODELO_VISION` desde `config`, API compatible OpenAI vía `https://integrate.api.
+  nvidia.com/v1`), `analizar_foto(url) -> AnalisisFoto` (daño estructural sí/no + descripción).
+  Protocolo inyectable (mismo patrón `ChatEstructurado`) para no llamar a NVIDIA en tests.
+  **Pedir la `NVIDIA_API_KEY` al usuario antes de probar esto en vivo** — sin key, los tests con
+  fake igual tienen que pasar.
+- [ ] 13.2 Tabla `fotos_pendientes_analisis` (mismo patrón que `ordenes`): si `not
+  enlace_arriba()`, el análisis de una foto se encola en vez de bloquear — no afecta ni la
+  alerta de seguridad ni el borrador de orden. Hilo de reconciliación la reintenta cuando vuelve
+  el enlace.
+- [ ] 13.3 Si el análisis llega *después* de que una orden ya se publicó y detecta daño
+  estructural, reabre la orden a `PendienteAprobacion` con motivo (nunca revierte un cierre ya
+  hecho). `reglas_aprobacion.evaluar_reglas` recibe `danio_estructural` desde este resultado
+  (default `False` si todavía no hay análisis) — así el caso del anexo (B-101 en
+  `fuga-sin-enlace` con foto de daño estructural) cae solo en la regla, sin hardcodear el equipo
+  (el override `siempre_pendiente` de Fase 9 queda como red de seguridad adicional, no como el
+  único mecanismo).
+- [ ] 13.4 `agente.py` / `publicar_estado`: `EstadoSistema.pendientes_sincronizar` deja de ser
+  `0` fijo (Entrega 1 lo dejó así con un comentario "es de la Entrega 2: bloque E") — pasa a ser
+  `count(ordenes.pendiente_publicar) + count(fotos_pendientes_analisis sin resolver)`.
+- [ ] 13.5 Tests: fake de visión (`tests/test_vision.py`, no llamar a NVIDIA), y la cola
+  (`tests/test_vision.py` o un archivo aparte: encola sin enlace, se resuelve cuando
+  `enlace_arriba()` vuelve a `True`).
+
+## Fase 14 — Cierre y certificación (G)
+
+- [ ] 14.1 `agente.py`: completar la rama de `Topicos.CIERRES` (el stub de 8.3) — valida
+  `NotaCierre`, busca la orden por `orden_id` en `persistencia.ordenes`, la pasa a `Ejecutada`
+  (G1) y la marca `pendiente_publicar=true` (mismo flujo publish-then-persist-best-effort que ya
+  usa `_avanzar_dialogo`).
+- [ ] 14.2 Comparación cierre vs. orden: función que compara `tareas`/`repuestos` pedidos contra
+  lo declarado en el `NotaCierre` (transcripto con el mismo `Transcriptor` + extraído con el
+  mismo patrón que `Extractor` ya usa para partes — reusar, no reinventar un segundo extractor) y
+  marca diferencias.
+- [ ] 14.3 `interfaces/central.py`: cierre propio (`ejecutor == "propio"`) → `/cerrar` → `Cerrada`
+  (supervisor); contratista → `/certificar` → `Certificada` (con `habilita`/
+  `monto_habilita_usd`, calculado contra la lista de precios `CT-SVP-2025`, **no** contra lo que
+  declara el cierre) o `/observar` → `Observada` (con motivo).
+- [ ] 14.4 Validar la lógica de habilita contra
+  `academia2026-tp/datos/documentos/contrato/cierres_ejemplo.json` (tiene movilización mal
+  cobrada, horas extra, lista de precios vieja — son los casos de prueba que el propio anexo da).
+- [ ] 14.5 Tests: `tests/test_cierres.py` (comparación cierre/orden), `tests/test_
+  certificacion.py` (contra los casos de `cierres_ejemplo.json`).
+
+## Fase 15 — Verificación final y documentación
+
+- [ ] 15.1 `pytest` completo (suite existente + todos los tests nuevos de 9 a 14) en verde antes
+  de tocar nada más.
+- [ ] 15.2 Pruebas manuales en vivo contra el stack real (`docker compose up -d --build` de
+  ambos repos): una orden que queda `Pendiente` por costo/stock/contratista, una que se
+  auto-aprueba, un corte de luz con una orden `Pendiente` en el medio (sobrevive con el mismo
+  id), un cierre por voz que mueve la orden a `Ejecutada`.
+- [ ] 15.3 Correr `academia2026-tp/correccion/corregir.py --escenarios tormenta-perfecta sin-luz
+  contratista fuga-sin-enlace --repo <path> --alumno josbert-rizzo` (**sin** `--sin-construir`
+  la primera vez — lección cara de Entrega 1, ver `BUGS.md`) e iterar sobre D1, D2, F3, G1 y la
+  eliminatoria `aprobacion_indebida` en `informe.md`/`resultado.json` hasta que no salte.
+- [ ] 15.4 Actualizar `README.md` (diagrama de workflow ya pedido en 8.4, endpoints de `central`
+  con ejemplos `curl`, qué modelo de visión se usa y por qué), `INFORME.md` (sumar el modelo de
+  visión a la tabla de modelos, costo real si hubo llamadas de pago), `BUGS.md` (seguir la
+  numeración desde #24), y marcar acá en `PLAN.md` las fases 7 a 15 con resultados reales
+  (checkboxes `[x]`, igual que se hizo con 0 a 6).
+- [ ] 15.5 Esperar instrucción explícita del usuario para commitear y pushear (nunca antes).
 - Este archivo se actualiza a medida que avanzamos (marco `[x]` lo hecho).
