@@ -36,6 +36,13 @@ class ResolverFalso:
     def equipo_por_tag(self, tag: str):
         return None
 
+    # Lote 3: métodos nuevos del resolver; vacíos = mismo comportamiento que antes en estos tests.
+    def tags(self) -> list[str]:
+        return []
+
+    def equipos_mencionados(self, texto: str) -> list[str]:
+        return []
+
 
 class VerificadorRangoFalso:
     def verificar(self, tag, variable_canonica, valor, unidad, hasta):
@@ -235,6 +242,29 @@ def test_presupuesto_agotado_sin_encontrar_equipo_no_queda_en_loop_infinito():
 
     assert confirmado is False
     assert extractor.llamadas == 0
+    assert estado.parte.filas[0].tag == "el rodamiento medio"  # usa el dicho como tag literal
+    assert "revisar a mano" in estado.parte.filas[0].observacion
+
+
+def test_equipo_no_encontrado_que_nunca_resuelve_no_gasta_todo_el_presupuesto():
+    # Ver BUGS.md #26: "el rodamiento" o "el pulmón" nombran una pieza, no un equipo — por más
+    # veces que se reinterprete la misma respuesta, el resolver nunca va a matchear nada. Antes
+    # esta rama reintentaba hasta agotar las 6 llamadas de `MAX_PASOS_LLM_POR_NOTA` (compartidas
+    # con el resto de la nota), lo que en la práctica cortaba la nota entera a los 90 s contra el
+    # corrector real. Ahora tiene el mismo tope chico que ya tenía la rama de desambiguación.
+    fila = FilaParteInterna(
+        tag_dicho="el rodamiento medio", tag=None, variable="temperatura", valor=59.0, hora=AHORA,
+    )
+    estado = EstadoDialogo(parte=_parte_con([fila]), fila_en_pregunta=0)
+    extractor = ExtractorFalso([FilaParte(tag="el rodamiento medio", variable="temperatura", valor=59.0)])
+    resolver = ResolverFalso(Resolucion(ResultadoResolucion.no_encontrado))
+
+    for _ in range(MAX_INTENTOS_DESAMBIGUACION + 1):
+        confirmado = procesar_respuesta(estado, "el rodamiento de la del medio", extractor, resolver, VerificadorRangoFalso())
+        assert confirmado is False
+
+    assert extractor.llamadas == MAX_INTENTOS_DESAMBIGUACION  # no siguió llamando al LLM
+    assert estado.consumo.pasos < MAX_PASOS_LLM_POR_NOTA  # no gastó todo el presupuesto de la nota
     assert estado.parte.filas[0].tag == "el rodamiento medio"  # usa el dicho como tag literal
     assert "revisar a mano" in estado.parte.filas[0].observacion
 

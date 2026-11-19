@@ -80,6 +80,43 @@ def evaluar_parte(parte: Parte, catalogo: CatalogoLimites, http: PlantaHTTP | No
     )
 
 
+def eventos_del_parte(
+    parte: Parte,
+    catalogo: CatalogoLimites,
+    http: PlantaHTTP | None = None,
+    novedades: dict[str, list[str]] | None = None,
+) -> list[EventoSistema]:
+    """Lote 4 (H15): un evento **por equipo** del parte — el corrector (B1) decide por cada equipo
+    de cada nota si correspondía `Escalado` o `SinNovedad`, y antes se publicaba uno solo por parte
+    (el primer equipo anómalo escalaba y el resto quedaba sin evento).
+
+    Escala un equipo con algún valor fuera de límite (como `evaluar_parte`) o con una novedad dicha
+    de palabra (`novedades`, de `procesamiento/novedades.py`). Ids estables por parte y equipo."""
+    novedades = novedades or {}
+    hora = parte.filas[0].hora if parte.filas else reloj.ahora()
+    tags = list(dict.fromkeys(f.tag for f in parte.filas if f.tag))
+    if not tags:
+        return [evaluar_parte(parte, catalogo, http)]
+
+    eventos = []
+    for tag in tags:
+        sub = parte.model_copy(update={"filas": [f for f in parte.filas if f.tag == tag]})
+        por_valor = evaluar_parte(sub, catalogo, http)
+        dichas = novedades.get(tag, [])
+        base = {"id": f"EVT-PARTE-{parte.id}-{tag}", "ts": hora, "equipo": tag, "origen": "parte",
+                "parte_id": parte.id, "nota_ids": parte.nota_ids}
+        if por_valor.tipo == TipoEvento.escalado or dichas:
+            motivos = []
+            if por_valor.tipo == TipoEvento.escalado:
+                motivos.append(por_valor.resumen)
+            if dichas:
+                motivos.append(f"El operador informa en {tag}: " + ", ".join(dichas))
+            eventos.append(EventoSistema(tipo=TipoEvento.escalado, resumen=". ".join(motivos), **base))
+        else:
+            eventos.append(EventoSistema(tipo=TipoEvento.sin_novedad, resumen=f"{tag} sin novedad en la recorrida.", **base))
+    return eventos
+
+
 @dataclass
 class _Racha:
     desde: datetime

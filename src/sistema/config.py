@@ -17,10 +17,24 @@ class Config:
     # internet/nube). nomic-embed-text es chico (~274 MB) y anda bien en CPU.
     rag_modelo_embeddings = os.getenv("RAG_MODELO_EMBEDDINGS") or "nomic-embed-text"
 
+    # Visión (Entrega 2, Fase 13): análisis de fotos de cierres vía NVIDIA NIM. A diferencia de
+    # transcripción/extracción/embeddings, acá no hay un modelo local liviano equivalente para
+    # visión multimodal — se usa la nube (requiere NVIDIA_API_KEY) y se encola cuando no hay
+    # enlace (ver `llm/vision.py` y `persistencia/ordenes.py`).
+    nvidia_api_key = os.getenv("NVIDIA_API_KEY") or ""
+    nvidia_modelo_vision = os.getenv("NVIDIA_MODELO_VISION") or "meta/llama-3.2-90b-vision-instruct"
+
     # Corte (4.1): si procesar una nota (descarga + transcripción + extracción + resolución)
     # tarda más que esto, se corta y se avisa igual en la tablet — más vale una respuesta
     # genérica a tiempo que quedarse mudo (sistema_mudo es eliminatorio).
     timeout_nota_s = float(os.getenv("TIMEOUT_NOTA_S", "90"))
+
+    # El análisis de una orden (Entrega 2) corre en su propio pool (`_pool_ordenes`), nunca
+    # compite por el worker de las notas — pero sí compite por CPU/Ollama con la indexación RAG
+    # de fondo (701 fragmentos) en entornos sin GPU, lo que lo hace bastante más lento que una
+    # nota (confirmado en vivo: cortes a los 90 s mientras la indexación corría en paralelo).
+    # Como no bloquea nada más, puede esperar más tiempo antes de cortar.
+    timeout_orden_s = float(os.getenv("TIMEOUT_ORDEN_S", "280"))
 
     postgres_host = os.getenv("POSTGRES_HOST", "postgres")
     postgres_port = int(os.getenv("POSTGRES_PORT", "5432"))

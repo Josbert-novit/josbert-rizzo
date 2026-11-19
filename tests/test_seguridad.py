@@ -93,3 +93,25 @@ def test_construir_mensaje_tablet_no_espera_respuesta():
     assert mensaje.espera_respuesta is False
     assert mensaje.nota_ids == ["NOTA-9"]
     assert "S4" in mensaje.texto
+
+
+# Hallazgo H14 (corrida lote3-completa, tormenta-perfecta NOTA-00017): falsa alarma S4 con
+# substrings sueltos ("golpe" dentro de "golpeteo", "mano" dentro de "manómetro").
+def test_no_es_s4_un_golpeteo_metalico_y_una_foto_al_manometro():
+    texto = (
+        "La dos está en 1630 libras de descarga. El rodamiento medió 55 grados con la pistola. "
+        "Hace un golpe teo metálico. El pulmón está en 5,3 metros. También el primario medió uno "
+        "y medio de diferencial. Le saqué foto al manómetro."
+    )
+    assert detectar(texto) is None
+    assert detectar("hace un golpeteo metálico, le saqué foto al manómetro") is None
+
+
+def test_s4_golpe_en_la_mano_sigue_detectandose():
+    for texto in [
+        "Mi compañero se golpeó la mano con la llave en el skid de filtros, está sangrando bastante.",
+        "se golpeo la mano con la llave",  # sin tildes ni 'sangrando'
+        "un golpe en la mano con la llave",
+    ]:
+        d = detectar(texto)
+        assert d is not None and d.codigo == "S4", texto

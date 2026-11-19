@@ -15,10 +15,11 @@ from planta_contrato import MensajeTablet, Pantalla
 from sistema.dominio.parte import EstadoParte, Parte
 from sistema.llm.control import ConsumoTokens, PresupuestoAgotado, verificar_presupuesto
 from sistema.llm.extraccion import Extractor
-from sistema.procesamiento.interpretacion import interpretar_texto
+from sistema.procesamiento.interpretacion import interpretar_texto, parser_configurado
 from sistema.procesamiento.rango_historico import VerificadorRango
 from sistema.procesamiento.resolucion import ResolverNombres
 from sistema.procesamiento.resolucion import _normalizar as _normalizar_dicho
+from sistema.procesamiento.respuestas_operador import aplicar_correcciones, tiene_valores
 from sistema.procesamiento.variables import mapear_variable
 from sistema.reloj import reloj
 
@@ -36,6 +37,10 @@ def _es_confirmacion(texto: str) -> bool:
 
 def _siguiente_fila_pendiente(parte: Parte) -> int | None:
     for i, fila in enumerate(parte.filas):
+        # Lote 3 (H13): sin equipo, sin candidatos y sin valor no hay nada que preguntar — antes
+        # se preguntaba "¿Podés repetirlo?" y el operador nunca lo resolvía (callejón sin salida).
+        if fila.tag is None and not fila.candidatos and fila.valor is None:
+            continue
         if fila.tag is None or fila.requiere_confirmacion:
             return i
     return None
@@ -63,21 +68,28 @@ def construir_mensaje(estado: EstadoDialogo) -> MensajeTablet:
     estado.fila_en_pregunta = indice
     opciones: list[str] = []
 
+    eleccion_de_equipo = False
     if indice is not None:
         fila = estado.parte.filas[indice]
         if fila.tag is None and fila.candidatos:
             texto = f'¿A cuál equipo te referís con "{fila.tag_dicho}"?'
             opciones = list(fila.candidatos)
+            eleccion_de_equipo = True
         elif fila.tag is None:
             texto = f'No encontré ningún equipo para "{fila.tag_dicho}". ¿Podés repetirlo?'
         else:
             texto = f"{fila.tag_dicho} ({fila.variable}): {fila.motivo_confirmacion}. ¿Confirmás el valor?"
+            if fila.ambiguedad_valor:
+                # Lote 5: un valor dicho de forma ambigua ("dieciocho" de diferencial) es una
+                # pregunta de verdad: lleva opciones (así cuenta como pregunta) y también el
+                # borrador, para que el operador vea el valor propuesto y lo confirme o corrija.
+                opciones = ["Sí", "No"]
     else:
         texto = "Parte armado con lo que entendí. ¿Confirmás todo como está?"
 
-    # Si es una pregunta de elegir entre opciones, la pantalla no lleva el borrador: mezclar las
-    # dos cosas hace ambigua la pregunta en sí (¿elegí un equipo, o estoy corrigiendo el parte?).
-    filas_pantalla = [] if opciones else [f.a_contrato() for f in estado.parte.filas]
+    # Si es una pregunta de elegir un equipo, la pantalla no lleva el borrador: mezclar las dos
+    # cosas hace ambigua la pregunta en sí (¿elegí un equipo, o estoy corrigiendo el parte?).
+    filas_pantalla = [] if eleccion_de_equipo else [f.a_contrato() for f in estado.parte.filas]
 
     mensaje = MensajeTablet(
         id=str(uuid.uuid4()),
@@ -120,6 +132,53 @@ def _mergear_correccion(parte: Parte, filas_nuevas: list) -> None:
             parte.filas.append(nueva)
 
 
+def _respuesta_sin_llm(estado: EstadoDialogo, texto_respuesta: str) -> bool | None:
+    """Lote 5: la respuesta del operador entendida sin LLM (`planta_kit.respuestas`, de la cátedra).
+    Devuelve lo mismo que `procesar_respuesta` (True = parte confirmado), o `None` si no se entendió
+    o no aplica a la pregunta en curso: ahí sigue el camino de siempre, con el LLM."""
+    parser = parser_configurado()
+    if parser is None:
+        return None
+    try:
+        from planta_kit.respuestas import interpretar
+
+        respuesta = interpretar(texto_respuesta, parser.resolutor)
+    except Exception:
+        return None
+
+    indice = estado.fila_en_pregunta
+    fila = estado.parte.filas[indice] if indice is not None and indice < len(estado.parte.filas) else None
+
+    if respuesta.tipo == "confirma":
+        if fila is None:
+            estado.parte.estado = EstadoParte.confirmado
+            return True
+        if fila.tag is not None:
+            fila.requiere_confirmacion = False
+            fila.motivo_confirmacion = None
+            fila.ambiguedad_valor = False
+            return False
+        return None
+    if respuesta.tipo == "elige":
+        if fila is not None and fila.tag is None and respuesta.tag_elegido:
+            fila.tag, fila.ambiguo, fila.candidatos = respuesta.tag_elegido, False, []
+            return False
+        return None
+    if respuesta.tipo == "corrige":
+        aplicar_correcciones(estado.parte, respuesta, parser.catalogo)
+        return False
+    if respuesta.tipo == "no_entiende" and not tiene_valores(estado.parte):
+        # "¿Confirmar qué? Mostrame lo que anotaste.": la nota no tiene ningún número que mostrar
+        # (solo estados u observaciones), así que no hay nada que el operador pueda confirmar.
+        # Seguir preguntando solo gasta llamadas al LLM (Lote 5).
+        nota_revision = "parte sin valores numéricos: se registra tal cual lo dictó el operador"
+        for f in estado.parte.filas:
+            f.observacion = f"{f.observacion} / {nota_revision}" if f.observacion else nota_revision
+        estado.parte.estado = EstadoParte.confirmado
+        return True
+    return None
+
+
 def procesar_respuesta(
     estado: EstadoDialogo,
     texto_respuesta: str,
@@ -131,6 +190,10 @@ def procesar_respuesta(
 
     Devuelve True si con esta respuesta el parte quedó Confirmado (ya no hace falta mandar
     otro mensaje a la tablet); False si hay que seguir preguntando."""
+    resultado = _respuesta_sin_llm(estado, texto_respuesta)
+    if resultado is not None:
+        return resultado
+
     indice = estado.fila_en_pregunta
 
     if indice is None:
@@ -175,19 +238,28 @@ def procesar_respuesta(
         return False
 
     if fila.tag is None:
-        # No se encontró ningún equipo: reinterpretar la respuesta como una nota nueva.
-        if _presupuesto_disponible(estado):
+        # No se encontró ningún equipo: reinterpretar la respuesta como una nota nueva. Tope propio
+        # de intentos (no solo el presupuesto de pasos entero de la nota): una frase que nombra una
+        # pieza en vez de un equipo ("el rodamiento", "el pulmón") no va a resolver nunca por más
+        # veces que se reinterprete igual, y cada reintento es una llamada al LLM — dejarlo
+        # consumir todo `MAX_PASOS_LLM_POR_NOTA` (6) en esta sola fila fue lo que, contra el
+        # corrector real, cortó la nota entera a los 90 s sin llegar a confirmarse (BUGS.md #26).
+        intentos = estado.intentos_desambiguacion.get(indice, 0) + 1
+        if _presupuesto_disponible(estado) and intentos <= MAX_INTENTOS_DESAMBIGUACION:
             filas_nuevas = interpretar_texto(
                 texto_respuesta, fila.hora, fila.fotos, extractor, resolver, verificador_rango, estado.consumo
             )
             if filas_nuevas:
                 estado.parte.filas[indice] = filas_nuevas[0]
+            if estado.parte.filas[indice].tag is None:
+                estado.intentos_desambiguacion[indice] = intentos
             return False
-        # Se agotó el presupuesto (ver BUGS.md #17): sin más reinterpretaciones posibles, `fila.tag`
-        # se queda en `None` para siempre y `_siguiente_fila_pendiente` la vuelve a preguntar sin
-        # parar. Se usa el nombre tal como lo dijo el operador como tag literal (mismo fallback que
-        # ya usa `a_contrato()`) y se marca para revisión manual, en vez de seguir preguntando.
-        nota_revision = "no se pudo identificar el equipo (se agotó el presupuesto de pasos): revisar a mano"
+        # Se agotó el presupuesto o los intentos de desambiguación (ver BUGS.md #17 y #26): sin
+        # más reinterpretaciones posibles, `fila.tag` se queda en `None` para siempre y
+        # `_siguiente_fila_pendiente` la vuelve a preguntar sin parar. Se usa el nombre tal como lo
+        # dijo el operador como tag literal (mismo fallback que ya usa `a_contrato()`) y se marca
+        # para revisión manual, en vez de seguir preguntando.
+        nota_revision = "no se pudo identificar el equipo: revisar a mano"
         fila.tag = fila.tag_dicho
         fila.observacion = f"{fila.observacion} / {nota_revision}" if fila.observacion else nota_revision
         return False

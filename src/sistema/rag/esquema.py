@@ -36,6 +36,16 @@ CREATE INDEX IF NOT EXISTS rag_fragmentos_embedding_idx
 CREATE INDEX IF NOT EXISTS rag_fragmentos_vigente_idx ON rag_fragmentos (vigente);
 -- Bases indexadas antes de agregar `aplica`: la columna se suma sin reindexar desde cero.
 ALTER TABLE rag_fragmentos ADD COLUMN IF NOT EXISTS aplica BOOLEAN NOT NULL DEFAULT true;
+
+-- Búsqueda híbrida (Entrega 2, hallazgo H1): parte léxica en full-text de Postgres. Columna
+-- generada, así está lista apenas se inserta el texto — sin esperar a Ollama. El título pesa más
+-- (`A`) que el cuerpo (`B`), igual que la línea de base BM25 de la cátedra (título ×3).
+ALTER TABLE rag_fragmentos ADD COLUMN IF NOT EXISTS tsv tsvector
+    GENERATED ALWAYS AS (
+        setweight(to_tsvector('spanish', coalesce(titulo, '')), 'A') ||
+        setweight(to_tsvector('spanish', coalesce(doc, '') || ' ' || texto), 'B')
+    ) STORED;
+CREATE INDEX IF NOT EXISTS rag_fragmentos_tsv_idx ON rag_fragmentos USING gin (tsv);
 """
 
 

@@ -23,6 +23,15 @@ def guardar_parte(nota_id: str, parte: Parte) -> Path:
     return carpeta
 
 
+def cargar_parte(nota_id: str) -> Parte | None:
+    """Para el análisis de órdenes (Fase 10): el parte confirmado que originó el evento Escalado
+    ya quedó en disco vía `guardar_parte`, no hace falta volver a pedirlo."""
+    archivo = config.media_dir / nota_id / "parte.json"
+    if not archivo.exists():
+        return None
+    return Parte.model_validate_json(archivo.read_text(encoding="utf-8"))
+
+
 def descargar_y_transcribir(nota: NotaRecorrida, http: PlantaHTTP, transcriptor: Transcriptor) -> str:
     """Descarga audio y fotos de la nota y transcribe el audio. Se separa de `armar_parte` para
     que la detección de alerta de seguridad (2.5) corra sobre el texto apenas sale de Whisper,
@@ -59,7 +68,7 @@ def armar_parte(
     extraídas (la asociación fila por fila queda para un paso posterior).
     """
     filas = interpretar_texto(texto, nota.ts, nota.fotos, extractor, resolver, verificador_rango, consumo)
-    parte = Parte(id=f"PARTE-{nota.id}", nota_ids=[nota.id], estado=EstadoParte.borrador, filas=filas)
+    parte = Parte(id=f"PARTE-{nota.id}", nota_ids=[nota.id], estado=EstadoParte.borrador, filas=filas, texto=texto)
     guardar_parte(nota.id, parte)
 
     sin_resolver = sum(1 for f in parte.filas if f.tag is None)

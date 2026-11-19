@@ -75,7 +75,9 @@ _PATRONES: dict[str, list[list[str]]] = {
         [r"lastimad"],
         [r"\bherid[oa]"],
         [r"accidentad"],
-        [r"golpe", r"mano"],
+        # Palabras completas (hallazgo H14, corrida lote3-completa): con substrings sueltos,
+        # "hace un golpeteo metálico ... le saqué foto al manómetro" disparó una falsa S4.
+        [r"\bgolpe(o|ado|ada|aron|e)?\b", r"\bmanos?\b"],
     ],
 }
 

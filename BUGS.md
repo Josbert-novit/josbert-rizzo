@@ -418,3 +418,315 @@ de toda la sesión, no solo de esta fase: cada fase de `PLAN.md` que se dio por 
 de "anda bien en mis pruebas manuales" encontró al menos un bug real al probarla contra el entorno
 real (la planta en vivo primero, el corrector automático al final) — diecinueve de los
 veintitrés bugs de este archivo (#8 en adelante) se encontraron así, no leyendo código.
+
+## Fase 15 (Entrega 2) — Verificación en vivo
+
+### 24. El análisis de órdenes compartía el pool de las notas — una orden lenta dejaba mudas a las notas
+**Dónde**: `src/sistema/agente.py::_avanzar_dialogo`/`_procesar_evento_escalado_con_corte`
+(Fases 8 y 10).
+**Bug**: el análisis de una orden (Fase 10, LLM local) se enviaba al mismo `_pool_notas` (un solo
+worker) que usan las notas de voz — y en el caso disparado desde `_avanzar_dialogo` (un evento
+`Escalado` que sale de un parte confirmado), se llamaba encima **sin ningún corte/vigía**, por el
+razonamiento de que "ya estamos en el hilo del pool, no hace falta otra vuelta". Probado en vivo
+contra el escenario `ataque`: el análisis de una sola orden tardó **2m29s** (el modelo local con
+un contexto largo y un schema anidado), y durante ese tiempo dos notas completamente distintas
+(`NOTA-00001`, `NOTA-00007`) se cortaron a los 90 s cada una porque el único worker de
+`_pool_notas` estaba ocupado con la orden — exactamente la misma clase de bug que el #22 de
+Entrega 1 (una tarea lenta bloqueando otra que no tiene nada que ver), pero reintroducida en esta
+entrega al reusar el pool existente en vez de aislar la nueva carga de trabajo.
+**Arreglo**: pool propio `_pool_ordenes` (análisis de órdenes y procesamiento de cierres, Fase
+14), separado de `_pool_notas`; la llamada desde `_avanzar_dialogo` pasó a ir siempre por
+`_procesar_evento_escalado_con_corte` (pool + vigía con `timeout_nota_s`), nunca inline.
+**Por qué importa**: "ya estamos en un hilo de background" no es lo mismo que "esta tarea no
+puede frenar a otra" — dos cargas de trabajo independientes (notas, órdenes) necesitan pools
+independientes, aunque las dos corran siempre fuera del hilo de red de MQTT. Solo se encontró
+corriendo el escenario real `ataque` contra el stack completo, no en los tests unitarios (que
+usan fakes instantáneos y nunca ejercitan la contención real del pool).
+
+### 25. `rag_fragmentos` nunca se indexaba — y el primer arreglo (indexar sincrónico) dejó al sistema mudo
+**Dónde**: `src/sistema/llm/analisis.py::armar_contexto` (vía `rag.buscar.buscar`), `src/sistema/agente.py::main`.
+**Bug**: indexar el corpus (`python -m sistema.rag.indexar`) siempre fue un paso manual (documentado
+en el README, corrido a mano durante el desarrollo) — nunca se ejecuta solo al levantar el stack.
+En Entrega 1 esto no rompía nada porque ningún camino automático llamaba a `rag.buscar`. En
+Entrega 2, `llm/analisis.py` SÍ lo llama en cada análisis de orden — y el corrector recrea los
+volúmenes de Postgres en cada escenario (`docker compose down -v` antes de cada uno), así que la
+tabla `rag_fragmentos` literalmente no existe nunca en una corrida real. Confirmado en los logs
+del corrector (`correccion/corridas/entrega2-ataque/ataque.log`): cada intento de análisis de
+orden terminaba en `psycopg.errors.UndefinedTable: relation "rag_fragmentos" does not exist`,
+y por lo tanto ninguna orden llegaba nunca a publicarse (D1/D2 quedaron "sin datos").
+**Arreglo (primer intento, insuficiente)**: `agente.py::main()` llamando a `indexar(http,
+embeddings)` sincrónico antes de conectar a MQTT. Arregló el `UndefinedTable`, pero rompió algo
+peor: el corpus real tiene ~700 fragmentos, y embeberlos con Ollama en esta CPU sin GPU tarda
+varios **minutos** — bloqueando el primer latido (`sistema/estado`) de los 4 escenarios de la
+corrida siguiente (`tormenta-perfecta`, `sin-luz`, `contratista`, `fuga-sin-enlace`) más allá de
+los 180 s reales que el corrector espera antes de soltar el reloj. Resultado: nota 15.1/100 con
+dos eliminatorias nuevas (`sin_alerta_de_seguridad`, `sistema_mudo`) — mucho peor que el problema
+original, confirmado también corriendo el corrector real (`correccion/corridas/entrega2-completa`).
+**Arreglo (el que queda)**: separar las dos partes. `_crear_esquema_rag_best_effort()` solo corre
+el DDL (`crear_esquema`, sin llamar a Ollama, milisegundos) sincrónico al arrancar — así la tabla
+existe desde el primer mensaje, aunque esté vacía. El indexado real (`indexar`, el que tarda
+minutos) pasa a `_indexar_corpus_en_segundo_plano()`, en su propio hilo daemon, arrancado después
+de conectar a MQTT — el agente publica su primer latido enseguida, y el corpus queda listo para
+citar manuales unos minutos después, sin que nada tenga que esperarlo.
+**Por qué importa**: dos lecciones en una. (1) un paso de setup que "ya se corrió una vez a mano"
+es invisible para cualquier entorno que arranque de cero (mismo tipo de trampa que el bug #20 de
+Entrega 1, acá del lado de los datos propios en vez de los modelos). (2) la solución obvia a (1)
+— indexar al arrancar — puede ser peor que el problema si no se separa lo rápido (que el sistema
+dependa de eso) de lo lento (que puede esperar): el patrón "nunca bloquear algo rápido con algo
+lento" (pool+vigía, bugs #22 y #24) también aplica al arranque, no solo al loop de mensajes. Ni el
+primer ni el segundo intento se habrían encontrado sin correr `correccion/corregir.py` de verdad.
+
+### 26. Una pieza del equipo ("el rodamiento", "el pulmón") no tiene tope propio de reintentos y gasta todo el presupuesto de la nota
+**Dónde**: `src/sistema/procesamiento/dialogo.py::procesar_respuesta` (rama `fila.tag is None`
+sin candidatos).
+**Bug**: cuando el operador nombra una pieza del equipo en vez de un equipo real ("el rodamiento",
+"el pulmón", "la punta"), `ResolverNombres.resolver` nunca va a encontrar ningún candidato —no
+importa cuántas veces se reinterprete la misma frase, el resultado va a ser `no_encontrado` otra
+vez. Antes de este fix, esta rama solo paraba cuando se agotaba `MAX_PASOS_LLM_POR_NOTA` (6,
+compartido con el resto de correcciones de la nota), así que una sola fila irresoluble podía
+gastar las 6 llamadas al LLM de la nota entera. Confirmado contra el corrector real
+(`correccion/corridas/entrega2-completa-v2` y `-v3`): varias notas con este patrón se cortaban a
+los 90 s (`ERROR nota NOTA-00003: no se terminó de procesar en 90 s, se corta`) sin llegar nunca a
+`Confirmado` — A2/A3 en 0%, y como el `Escalado` de esas notas tampoco llegaba a dispararse a
+tiempo, también restaba datos a B1/D2.
+**Arreglo**: la misma idea que ya tenía la rama de desambiguación ambigua (`MAX_INTENTOS_
+DESAMBIGUACION`, bug #15): un tope chico (3) de reintentos propio de esta fila, separado del
+presupuesto completo de la nota. Agotados los 3 intentos, se usa el nombre dicho como tag literal
+y se marca "revisar a mano" — sin esperar a que se acabe el presupuesto entero.
+**Por qué importa**: no todas las llamadas al LLM dentro del presupuesto de una nota valen lo
+mismo — reintentar una frase que *nunca* va a resolver (porque no nombra ningún equipo) no es lo
+mismo que reintentar una corrección real, y dejarla consumir el mismo presupuesto completo le
+resta intentos útiles al resto de la nota además de arriesgar el corte por tiempo.
+
+### 27. La indexación RAG de fondo y el análisis de una orden compiten por el mismo Ollama, aunque corran en pools separados
+**Dónde**: `src/sistema/rag/indexar.py::indexar`, `src/sistema/agente.py::_procesar_evento_
+escalado`/`_indexar_corpus_en_segundo_plano`.
+**Bug**: separar la indexación en su propio hilo (bug #25) evita bloquear el primer latido, pero
+Ollama en esta CPU (sin GPU) sirve un pedido a la vez — la indexación de fondo (701 fragmentos) y
+el análisis de una orden terminan en la misma cola de ese único servidor, aunque corran en pools
+de Python distintos. Confirmado en vivo (`entrega2-completa-v2`/`v3`): con lotes de 32 fragmentos,
+un análisis de orden se cortaba a los 90 s esperando su turno; con lotes más chicos (4, mitigación
+parcial) el análisis seguía sin ninguna llamada HTTP nueva por **más de 3 minutos** en un caso
+real, mucho más que la ventana real de un escenario del corrector.
+**Arreglo**: un `threading.Event` (`sistema.llm.control.analisis_orden_en_curso`) que
+`_procesar_evento_escalado` prende antes de llamar al análisis y apaga al terminar. La indexación
+(`indexar()`, con el callback `debe_pausar`) espera mientras esté activo antes de mandar cada lote
+nuevo a Ollama. **Ampliación tras seguir viendo cortes a los 280 s en vivo** (con 8 eventos
+`Escalado` de un mismo equipo encolados detrás del primero en `_pool_ordenes`): la indexación no
+era la única competencia — las notas de voz (`Extractor.extraer`, `ExtractorCierre.extraer`,
+pool separado `_pool_notas`) también llaman al mismo Ollama, y con el fix del bug #26 las notas
+pasan más rápido por el diálogo, generando **más** tráfico de notas en el mismo tiempo real. Se
+agregó `ceder_turno_si_hay_orden_en_curso()` (mismo módulo), llamado al inicio de ambos
+extractores: mientras haya un análisis de orden en curso, una nota espera su turno antes de
+mandar su propia llamada al LLM (con un tope defensivo de 60 s, para no dejar una nota colgada
+para siempre si el evento quedara prendido por algún bug). La indexación es de fondo y sin apuro
+(puede tardar de más); una nota puntúa bastante menos que D1+D2+F3+G1 juntos (30 de 93 puntos) —
+no tiene sentido que todo compita en igualdad de condiciones por el mismo recurso escaso.
+**Por qué importa**: dos pools de Python separados (bug #24) evitan que una tarea lenta bloquee el
+*hilo* de otra, pero no evitan que compitan por un recurso externo compartido y serializado
+(acá, un único servidor Ollama sin GPU) — ese tipo de contención hay que resolverlo explícitamente
+(pausar lo que puede esperar), no alcanza con "correr en threads distintos".
+
+### 28. La indexación RAG al arrancar dejaba sin turno a las notas: se cortaban casi todas a los 90 s (H1, H2)
+**Dónde**: `src/sistema/agente.py::_indexar_corpus_en_segundo_plano`, `src/sistema/rag/indexar.py`.
+**Bug**: el corrector borra los volúmenes en cada escenario (`down -v`), así que el sistema
+reindexaba los 701 fragmentos con `nomic-embed-text` desde cero cada vez. Esa indexación ocupaba el
+Ollama de CPU durante todo el escenario (nunca pasaba de ~100/701) y solo se pausaba durante un
+análisis de orden, no durante una nota. En `entrega2-completa-v6` se cortaron 11 de 13 notas en
+`tormenta-perfecta` y 16 de 19 en `contratista`, sin ninguna orden publicada: **33.7/100**.
+**Arreglo**: búsqueda **híbrida**. La indexación hace dos pasadas: primero carga el texto sin
+embeddings (en segundos, y con eso ya anda la búsqueda por palabras con `tsvector` en Postgres),
+después calcula los embeddings de a 4 y se pausa con `trabajo_urgente` (un contador que prenden
+las notas, las respuestas y los cierres). La búsqueda une los dos rankings con RRF: si todavía no
+hay embeddings, o si falla el de la pregunta, responde igual con la mitad por palabras.
+**Por qué importa**: lo que puede esperar (los embeddings) tiene que ceder ante lo que puntúa con
+tiempo real (las notas). Además, el sistema tiene que servir desde el primer minuto, no después de
+indexar todo.
+
+### 29. Dos hilos creaban tablas a la vez sobre la base recién creada (H6)
+**Dónde**: `src/sistema/agente.py::main` (esquema de fotos vs. indexación).
+**Bug**: `duplicate key value violates unique constraint "pg_type_typname_nsp_index"` al arrancar.
+Dos `CREATE TABLE IF NOT EXISTS` en paralelo no son seguros en Postgres: el `IF NOT EXISTS` no
+cubre la carrera sobre el catálogo.
+**Arreglo**: el esquema de fotos se crea en `main()` antes de arrancar los hilos
+(`_crear_esquema_fotos_best_effort`).
+**Por qué importa**: `IF NOT EXISTS` evita el error al repetir, no al concurrir. El DDL se corre
+una vez y en un solo hilo.
+
+### 30. El análisis de órdenes no terminaba nunca: generación sin tope del modelo chico (H7)
+**Dónde**: `src/sistema/llm/analisis.py`, `src/sistema/procesamiento/ordenes.py::procesar_evento_escalado`.
+**Bug**: en `lote1-contratista` seguía habiendo 0 órdenes: la única llamada de análisis no
+terminó en 280 s. El esquema que veía el LLM incluía `evidencia_texto` (un campo que llena el
+código), y no había `num_predict`, `num_ctx` ni tope de listas: `qwen2.5:1.5b` generaba sin fin.
+Además, si el análisis levantaba una excepción, el evento quedaba sin orden.
+**Arreglo**: `evidencia_texto` fuera del esquema (`SkipJsonSchema`), listas con `max_length`
+(3 causas, 4 tareas, 6 repuestos), `num_predict=450`, `num_ctx=4096`, timeout HTTP de 90 s. Si
+falla, cae a una orden de **inspección**.
+**Por qué importa**: con un modelo chico hay que acotar la salida por todos lados (esquema,
+tokens, tiempo), y siempre tener un plan B determinístico.
+
+### 31. Revertido el "ceder el turno" del #27: hacía esperar 60 s a cada nota y no servía (H8)
+**Dónde**: `src/sistema/llm/extraccion.py`, `src/sistema/llm/cierre.py`, `src/sistema/llm/control.py`.
+**Bug**: con un análisis colgado (#30), cada llamada de una nota esperaba el máximo de 60 s antes
+de usar Ollama: 13 de 19 notas cortadas a los 90 s. Además Ollama sí atendía en paralelo, así que
+la espera ni siquiera evitaba la competencia.
+**Arreglo**: las notas ya no ceden el turno. La prioridad se invirtió: lo que espera ahora es el
+análisis (ver #33), y las notas pasan primero.
+**Por qué importa**: una espera "defensiva" multiplicada por cada llamada de cada nota es peor que
+el problema que quería evitar. La prioridad va del lado de lo que puntúa con tiempo real.
+
+### 32. Nombres de equipo que no resolvían: "pulmón", "filtro B", "la 1" contra "1.1" (H4, H13)
+**Dónde**: `src/sistema/procesamiento/resolucion.py`, `interpretacion.py`, `dialogo.py`.
+**Bug**: el LLM extrae "pulmón" y la planta lo lista como "el pulmón". La comparación por
+caracteres no los hacía coincidir. "B" a secas tampoco resolvía a "el filtro B". Una pieza
+("empaquetadura") salía como fila suelta y el diálogo preguntaba "¿podés repetirlo?" sin salida
+posible (el operador simulado contesta "no te entendí").
+**Arreglo**: comparación **por palabras** sin el artículo inicial, y se acepta que lo dicho sea el
+final de un nombre. Una pieza hereda el único equipo nombrado en la nota. Una fila sin equipo pero
+con valor pregunta con todas las opciones, y una fila sin equipo ni valor ya no se pregunta. Los
+nombres que son solo un número tienen que aparecer completos ("me dio 1.1" ya no nombra a la 1).
+**Por qué importa**: cada callejón sin salida del diálogo deja una nota sin confirmar, y eso arrastra
+A2, A3, B1 y D2.
+
+### 33. La orden dependía del LLM: sin análisis no había orden (H10, H12)
+**Dónde**: `src/sistema/procesamiento/ordenes.py::orden_inmediata`, `src/sistema/agente.py::_procesar_evento_escalado_con_corte`.
+**Bug**: con el análisis acotado (#30) seguía tardando minutos por escalado en esta CPU, y las
+órdenes llegaban tarde o no llegaban (D2, F3).
+**Arreglo**: cada `Escalado` genera **en segundos y sin LLM** una orden de inspección (`I-VIB` para
+vibración, temperatura o ruido; `I-VAL` para el resto). Las reglas la evalúan, y como esas tareas
+no son estándar, la orden siempre queda `PendienteAprobacion`. No se duplica con una orden abierta
+del mismo equipo y tareas: se le suma el evento. El análisis del LLM corre después, con menor
+prioridad y en su propio pool (con un máximo de 2 en cola, para no frenar los cierres), y queda
+como **sugerencia** para el planificador (`GET /api/ordenes/{id}/sugerencia`): nunca se publica.
+**Por qué importa**: lo que puntúa (que exista una orden correcta y a tiempo) no puede depender de
+lo más lento y menos confiable del sistema. Además, como la sugerencia nunca se publica, una nota
+con instrucciones inyectadas no puede hacer aprobar nada.
+
+### 34. Falsa alarma de seguridad S4: "golpeteo" + "manómetro" (H14)
+**Dónde**: `src/sistema/procesamiento/seguridad.py`.
+**Bug**: la regla de persona lesionada buscaba "golpe" y "mano" como pedazos de palabra, y
+matcheó "hace un *golpe*teo metálico… le saqué foto al *mano*́metro" (`lote3-completa`,
+`tormenta-perfecta` NOTA-00017). B2 bajó a 88%. Una falsa alarma resta y puede ser eliminatoria.
+**Arreglo**: palabras completas ("golpe", "golpeó", "golpeado"… y "mano"/"manos"), con dos tests
+de regresión con la transcripción real. Verificado en vivo en `lote4-completa`: B2 100%.
+**Por qué importa**: en un detector por palabras clave, un substring corto es una falsa alarma
+esperando a pasar.
+
+### 35. Un solo evento por parte, y solo por valores: las fallas dichas de palabra no escalaban (H15, H16)
+**Dónde**: `src/sistema/procesamiento/eventos.py::eventos_del_parte`, `src/sistema/procesamiento/novedades.py`.
+**Bug**: el corrector decide **por cada equipo de cada nota** si correspondía `Escalado` o
+`SinNovedad`, y cualquier observación del operador que no sea "parada, en reserva" o "parada por
+mantenimiento" ya es una anomalía. Nosotros publicábamos un solo evento por parte (el resto de los
+equipos quedaba sin evento) y solo escalábamos por un **valor** fuera de límite. Una falla dicha
+de palabra ("pierde por la empaquetadura", "hace un golpeteo", "el visor de aceite está bajo")
+terminaba en `SinNovedad` y sin orden: B1 29%, D2 50%, F3 0% en `lote3-completa`.
+**Arreglo**: detector determinístico de fallas dichas (sin LLM, mismo criterio que la alerta de
+seguridad), atribuidas al equipo del tramo de la nota. Un tramo sin equipo hereda el último
+nombrado, porque Whisper corta "la dos… El rodamiento… Hace un golpeteo" en oraciones separadas.
+Un evento por equipo del parte. Validado offline con las transcripciones reales contra la verdad
+del corrector: 83 de 86 equipos bien. En vivo (`lote4-completa`): B1 29% → 41%, F3 0% → 100%.
+**Por qué importa**: leer cómo se mide (la función del corrector) mostró que el problema era la
+**forma** de los eventos, no solo la detección.
+
+### 36. El evento de "nota cortada" era un Escalado sin equipo que arruinaba todos los equipos sin novedad (H18)
+**Dónde**: `src/sistema/agente.py::_vigilar_corte`.
+**Bug**: cuando una nota pasaba los 90 s se publicaba `EVT-TIMEOUT-{nota}` como `Escalado` **sin
+equipo**. El corrector cuenta un evento sin equipo para **todos** los equipos de esa nota, así que
+cada equipo que debía quedar en `SinNovedad` daba error: 10 notas así en `tormenta-perfecta`
+(B1 11.5% en ese escenario).
+**Arreglo**: ese evento ya no se publica. La tablet sigue avisando ("estamos procesando…"), así que
+el sistema no queda mudo, y la nota publica sus eventos por equipo al confirmarse. Verificado en
+`lote4-tormenta`: 11.5% → 27%.
+**Por qué importa**: un evento "por las dudas" no es neutro: se puntúa igual que los demás.
+
+### 37. Los eventos esperaban a que el operador confirmara, y algunas notas no se confirman nunca (H19)
+**Dónde**: `src/sistema/agente.py::_escalar_novedades_dichas`, `src/sistema/procesamiento/novedades.py`.
+**Bug**: el operador simulado solo confirma borradores con filas **con valor**. A una nota sin
+números ("La 2 pierde bastante por la empaquetadura…", `ataque`) contesta "¿Confirmar qué?", y como
+el `Escalado` salía recién al confirmar, la falla F01 de B-102 nunca tuvo orden (D2). En ráfagas
+de notas (`tormenta-perfecta`), varias tampoco llegan a confirmarse antes del fin del escenario.
+**Arreglo**: apenas se transcribe la nota, las fallas dichas que se pueden atribuir seguro publican
+`Escalado`, con el mismo id que el evento del parte (y su orden de inspección). Los equipos
+nombrados sin ninguna falla publican `SinNovedad` con un id **distinto** (`EVT-NOTA-…`): el
+corrector se queda con la primera publicación de cada id, así que un `Escalado` posterior por
+valor sale igual. Si en la nota queda una falla sin atribuir, no se publica ningún `SinNovedad`
+temprano. Validado sobre las corridas reales: 26 escalados y 138 `SinNovedad` tempranos correctos,
+0 en equipos equivocados.
+**Por qué importa**: lo que se puede decidir solo con la nota no tiene por qué esperar al diálogo,
+igual que la alerta de seguridad.
+
+### 38. Un SinNovedad temprano y el del parte confirmado eran "duplicados" para el corrector (H20)
+**Dónde**: `src/sistema/agente.py::_avanzar_dialogo` (`_sin_novedad_ya_publicados`).
+**Bug**: con #37, un equipo sin falla publicaba `SinNovedad` al llegar la nota (`EVT-NOTA-…`) y
+otra vez al confirmar el parte (`EVT-PARTE-…`). `sin_duplicados` (E3) agrupa por nota, tipo y equipo
+y cuenta dos ids distintos como duplicado: E3 bajó a 88% en `lote4b-completa`.
+**Arreglo**: al confirmar no se repite el `SinNovedad` de los equipos que ya lo tuvieron temprano.
+Se recalcula con la misma función sobre el mismo texto, así que no depende de memoria del proceso
+y sobrevive a un reinicio. Verificado en `lote4c-completa`: E3 100%.
+**Por qué importa**: cuando un mismo hecho se publica por dos caminos, hay que decidir cuál es la
+publicación "oficial", no publicar dos veces.
+
+### 39. El latido cada 30 s nunca caía dentro de un corte de enlace que dura segundos reales (H21)
+**Dónde**: `src/sistema/agente.py::publicar_estado`.
+**Bug**: el reloj simulado corre rápido. En `fuga-sin-enlace` el corte duraba pocos segundos
+reales, y con un latido fijo cada 30 s ninguno salía mientras el enlace estaba caído: el corrector
+nunca veía `enlace_ok=false` (E2).
+**Arreglo**: el estado se revisa cada 2 s y se publica apenas cambia el enlace o la cantidad de
+pendientes, además del latido regular.
+**Por qué importa**: un estado que se informa por período fijo se pierde los cambios cortos; lo que
+importa es avisar el cambio.
+
+### 40. El parte por voz dependía entero del LLM: lento, poco preciso y con cortes a los 90 s (Lote 5)
+**Dónde**: `src/sistema/procesamiento/interpretacion.py`, `parser_notas.py`, `dialogo.py`,
+`respuestas_operador.py`; `src/planta_kit/` (copia de la librería de la cátedra).
+**Bug**: cada nota y cada respuesta del operador pasaban por `qwen2.5:1.5b` en CPU. El borrador
+salía bien al primer intento en ~21% de las notas (A2) y el parte final en ~21% (A3). En ráfagas de
+notas, 10 se cortaban a los 90 s. Además "Perfecto, confirmo." no contaba como confirmación (faltaba
+en `PALABRAS_CONFIRMACION`) y también iba al LLM.
+**Arreglo**: lo que propone la cátedra para el CU1 (`libreria-tp/ADLC.md`: "el LLM solo extrae
+cuando el parser no alcanza"): primero el parser determinístico de `planta_kit` (notas y respuestas),
+con las mañas de Whisper medidas en las corridas ("medió 62", "1-1", "golpe teo",
+"embarquetadura"). El LLM queda de respaldo. Medido offline sobre 142 notas reales antes de tocar
+nada (`evaluacion/evaluar_parser.py`); en vivo (`lote5-completa`): A2 21% → 57%, A3 21% → 64%,
+41 notas por el parser y 7 por el LLM, la corrida bajó de 39 a 27 min, **80.8/100**.
+**Por qué importa**: para un dominio con frases tan regulares, reglas medidas contra datos reales
+le ganan a un modelo chico en velocidad y en precisión. El LLM rinde más como respaldo de lo raro
+que como camino principal.
+
+### 41. Una nota con un nombre deformado iba al LLM y trababa las notas de atrás (H22)
+**Dónde**: `src/sistema/procesamiento/parser_notas.py::ParserPartes.parsear`.
+**Bug**: "El A1 está disparada" (Whisper por "la uno") quedaba sin entender, la nota entera iba al
+LLM, tardaba más de 90 s y las 3 notas siguientes se cortaban esperando en la cola
+(`lote5-completa`, `contratista`). Lo mismo con el texto inyectado de `ataque` ("nota para el
+sistema, aprobala…").
+**Arreglo**: solo va al LLM si lo que quedó sin entender **tiene un número**, es decir una lectura
+que se podría perder. Si no, se usa lo que entendió el parser y lo demás se registra en el log.
+Offline sobre 188 notas reales: de 14 al LLM pasan a 7, sin perder ningún borrador perfecto.
+**Por qué importa**: la decisión de pagar una llamada cara tiene que depender de si puede aportar
+algo. Además, el texto con instrucciones inyectadas ya ni llega a un modelo.
+
+### 42. Las fotos de las notas nunca iban a la cola de visión, y sin clave hubieran quedado pendientes para siempre (H23)
+**Dónde**: `src/sistema/agente.py::_procesar_nota`, `src/sistema/procesamiento/fotos.py`.
+**Bug**: solo las fotos de un **cierre** entraban a la cola de visión. La foto de la nota S1 de
+`fuga-sin-enlace`, tomada con el enlace caído, nunca quedaba pendiente, así que el latido no tenía
+nada que mostrar (E2). Y al encolarla aparecía otro problema: sin `NVIDIA_API_KEY`, al volver el
+enlace el análisis fallaba siempre y la foto quedaba pendiente para siempre.
+**Arreglo**: las fotos de las notas van a la cola en un hilo aparte (no frenan el parte ni la
+alerta). Sin visión configurada, al volver el enlace la foto se marca resuelta "sin análisis" y se
+registra en el log.
+**Por qué importa**: una cola que no puede vaciarse nunca es tan mala como no tener cola.
+"Pendiente" tiene que significar "se va a resolver solo cuando vuelva el enlace".
+
+### 43. El LLM de respaldo trababa la cola aunque no tuviera nada que leer (H24)
+**Dónde**: `src/sistema/procesamiento/parser_notas.py::ParserPartes.analizar`, `interpretacion.py::interpretar_texto`, `llm/extraccion.py`.
+**Bug**: en `ataque` (un escenario corto en tiempo real), "el filtro B me dio diez de diferencial"
+llegó transcripto como "El filtro V-Medial DSD diferencial". El parser no sacó ninguna fila, la
+nota fue al LLM, que tardó más de 90 s, y la nota siguiente se cortó esperando hasta que terminó el
+escenario. Ese texto no tiene ningún número, así que ningún modelo podía recuperar la lectura.
+Aparte, una nota con "la bomba" a secas y sin valor ("¿La bomba está parada en reserva?") no
+preguntaba cuál bomba, y la verdad del corrector sí lo cuenta como ambigüedad (A4a).
+**Arreglo**: (a) sin números en lo no entendido, no se llama al LLM, haya o no filas; (b) el
+extractor LLM tiene timeout de 45 s y, si falla o se pasa, se usa lo que entendió el parser; (c) la
+ambigüedad de equipo se pregunta aunque la fila no tenga valor.
+**Por qué importa**: un respaldo lento no puede ser bloqueante, y hay que poder decidir de antemano
+que no vale la pena llamarlo.

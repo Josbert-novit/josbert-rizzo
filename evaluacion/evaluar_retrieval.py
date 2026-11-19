@@ -95,11 +95,16 @@ def main() -> None:
     embeddings = Embeddings()
     suite = http.archivo_json("evaluacion/retrieval.json")
 
+    # `--solo-palabras`: mide solo la mitad full-text de la búsqueda híbrida (sin Ollama), para
+    # comparar cada mitad contra la combinada.
+    emb = None if "--solo-palabras" in sys.argv else embeddings
+
     def buscador(pregunta: str, k: int) -> list[str]:
-        return [f.cita for f in buscar(embeddings, pregunta, k=k)]
+        return [f.cita for f in buscar(emb, pregunta, k=k)]
 
     resultado = evaluar(buscador, suite)
     t = resultado["total"]
+    print("Modo:", "solo palabras clave (full-text)" if emb is None else "híbrida (full-text + pgvector, RRF)")
     print(f"Preguntas evaluadas: {t['n']}")
     print(f"hit@k:    {t['hit@k']}")
     print(f"recall@k: {t['recall@k']}")
@@ -128,10 +133,17 @@ def main_oficial() -> None:
     suite = http.archivo_json("evaluacion/retrieval.json")
     fragmentos = http.fragmentos()
 
-    def buscador(pregunta: str, k: int) -> list[str]:
+    def hibrida(pregunta: str, k: int) -> list[str]:
         return [f.cita for f in buscar(embeddings, pregunta, k=k)]
 
-    for nombre, funcion in (("Nuestro (pgvector)", buscador), ("BM25 (línea de base)", BM25(fragmentos).buscar)):
+    def solo_palabras(pregunta: str, k: int) -> list[str]:
+        return [f.cita for f in buscar(None, pregunta, k=k)]
+
+    for nombre, funcion in (
+        ("Nuestra híbrida (full-text + pgvector, RRF)", hibrida),
+        ("Nuestra solo full-text", solo_palabras),
+        ("BM25 (línea de base)", BM25(fragmentos).buscar),
+    ):
         r = evaluar_oficial(funcion, suite)
         t = r["total"]
         print(f"\n{nombre} · {r['n']} preguntas")

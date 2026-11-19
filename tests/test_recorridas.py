@@ -57,6 +57,13 @@ class ResolverFalso:
             return Resolucion(ResultadoResolucion.resuelto, tag="B-102")
         return Resolucion(ResultadoResolucion.no_encontrado)
 
+    # Lote 3: métodos nuevos del resolver; vacíos = mismo comportamiento que antes en estos tests.
+    def tags(self) -> list[str]:
+        return []
+
+    def equipos_mencionados(self, texto: str) -> list[str]:
+        return []
+
     def equipo_por_tag(self, tag: str):
         return self.EQUIPOS.get(tag)
 

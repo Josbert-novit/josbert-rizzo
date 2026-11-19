@@ -13,7 +13,9 @@ Una nota puede mezclar varios equipos y datos en cualquier orden. Para cada equi
 el operador menciona, generá una fila con:
 - tag: el identificador o nombre del equipo tal como lo dice el operador, incluso si es informal \
 (por ejemplo "la dos", "el filtro de la izquierda"). No lo resuelvas contra un listado: eso lo hace \
-otro paso.
+otro paso. Una pieza (rodamiento, sello, empaquetadura, aceite, acople, motor) no es un equipo: si \
+el operador habla de la pieza de un equipo que nombró antes, usá el nombre de ese equipo como tag \
+y poné la pieza en variable u observacion.
 - variable: qué midió u observó (por ejemplo presión de descarga, diferencial, temperatura, vibración).
 - valor: el número mencionado, si lo hay.
 - unidad: la unidad mencionada o implícita por el equipo (kg/cm2, psi, bar), o null si no se puede \
@@ -22,6 +24,9 @@ inferir con certeza.
 
 No inventes datos que la nota no menciona. Si falta un dato, dejalo null. Una nota sin equipos ni \
 variables (por ejemplo una nota en vivo sin nada para reportar) produce una lista de filas vacía."""
+
+
+TIMEOUT_EXTRACCION_S = 45.0
 
 
 class FilasExtraidas(BaseModel):
@@ -47,6 +52,9 @@ class Extractor:
                 model=config.llm_modelo_extraccion,
                 base_url=config.ollama_url,
                 temperature=0,
+                # Lote 5b: el LLM es el respaldo del parser; si tarda más que esto, se usa lo que
+                # entendió el parser en vez de trabar la cola de notas (corte a los 90 s).
+                client_kwargs={"timeout": TIMEOUT_EXTRACCION_S},
             ).with_structured_output(FilasExtraidas)
         return self._chat
 

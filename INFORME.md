@@ -91,3 +91,56 @@ cuello de botella identificado (B1/A2/A3 bajos en la corrección por diálogos q
 confirmarse dentro de la ventana de tiempo real), y un modelo más grande empeoraría exactamente
 eso. Queda como mejora concreta para la Entrega 2: evaluar `qwen2.5:3b` con GPU, o reducir la
 cantidad de llamadas al LLM por nota en vez de agrandar el modelo.
+
+# Informe — modelos (Entrega 2)
+
+## Modelos nuevos
+
+| Tarea | Modelo | Proveedor | Local/nube | Por qué |
+| --- | --- | --- | --- | --- |
+| Análisis de orden (`llm/analisis.py`, Fase 10) | **qwen2.5:1.5b** (mismo modelo y motivo que 1.3) | Alibaba / Ollama | Local | Desde la verificación final queda como **sugerencia** para el planificador, nunca publicada: la orden que sale es una inspección armada sin LLM (`BUGS.md` #33). En esta CPU una llamada tarda minutos, así que va acotada (`num_predict=450`, `num_ctx=4096`, listas con tope, timeout de 90 s; `BUGS.md` #30) y con menor prioridad que las notas. |
+| Extracción de cierre (`llm/cierre.py`, Fase 14.2) | **qwen2.5:1.5b** (idem) | Alibaba / Ollama | Local | Mismo motivo: comparar un cierre contra la orden no puede depender de la nube. |
+| Análisis de fotos (`llm/vision.py`, Fase 13) | NVIDIA NIM `meta/llama-3.2-90b-vision-instruct` | NVIDIA (`integrate.api.nvidia.com`, API compatible OpenAI) | **Nube** | No hay un modelo de visión local liviano equivalente a Whisper/qwen2.5/nomic-embed-text que corra razonable en esta CPU sin GPU. Es aceptable que sea de nube porque el anexo lo dice explícito: con el enlace caído, el análisis de fotos queda en cola (`persistencia/fotos.py`) y se reintenta solo cuando vuelve — nunca bloquea la alerta de seguridad ni el borrador de orden (que siguen 100% locales). |
+
+## Costo y estado de prueba en vivo
+
+El análisis de visión requiere una `NVIDIA_API_KEY` (free tier de `build.nvidia.com`) que todavía
+no se pidió/configuró — los tests (`tests/test_vision.py`) pasan con un cliente fake, sin llamar
+a NVIDIA de verdad; falta correr el escenario `fuga-sin-enlace` en vivo contra el modelo real
+(Fase 15) para medir costo y latencia reales. El resto de los modelos nuevos (análisis, cierre)
+son locales — mismo costo USD 0 que en Entrega 1, mismo motivo (ver sección anterior).
+
+## Qué se decidió sin LLM, y por qué (verificación final, Fase 15)
+
+Con un modelo de 1.5B en CPU, cada llamada cuesta segundos o minutos y puede salir mal. Por eso,
+todo lo que se puntúa con tiempo real y se puede decidir con reglas quedó **sin LLM**, igual que la
+alerta de seguridad de la Entrega 1:
+
+| Decisión | Cómo | Dónde |
+| --- | --- | --- |
+| Alerta de seguridad S1-S4 | palabras clave completas sobre la transcripción | `procesamiento/seguridad.py` |
+| Fallas dichas de palabra (empaquetadura, golpeteo, aceite bajo, disparo…) | palabras clave + equipo del tramo de la nota | `procesamiento/novedades.py` |
+| `Escalado`/`SinNovedad` por equipo | límites de `GET /api/planta` + fallas dichas | `procesamiento/eventos.py` |
+| Orden publicada (inspección `I-VIB`/`I-VAL`) | tabla fija por tipo de problema + reglas de aprobación | `procesamiento/ordenes.py::orden_inmediata` |
+| Búsqueda en el corpus mientras no hay embeddings | full-text de Postgres (`tsvector`), unido al semántico por RRF | `rag/buscar.py` |
+
+El parte por voz también pasó a **parser primero, LLM de respaldo** (Lote 5, diseño de la cátedra
+para el CU1): el parser determinístico de `planta_kit` arma el borrador y entiende las respuestas
+del operador; el LLM local solo interviene cuando queda texto con números sin entender.
+
+| Parte por voz | Antes (todo LLM) | Parser primero |
+| --- | ---: | ---: |
+| Notas por el LLM (corrida completa) | todas | 2 de 50 (`lote5c-completa`) |
+| A2 borrador al 1er intento | 21% (`lote4c`) | 66% (`lote5c`) |
+| A3 parte final correcto | 21% | 69% |
+| Notas cortadas a los 90 s | 10 | 0 |
+| Duración de la corrida completa | 39 min | 29 min |
+| Nota del corrector | 73.6 | **87.5** |
+
+El LLM local sigue con la extracción de respaldo y la sugerencia de causa/tareas para el
+planificador. Ninguna IA paga ni de nube en el camino crítico: la única llamada de nube es la de
+visión (fotos), que queda en cola si no hay enlace. El costo en USD sigue siendo 0.
+
+`nomic-embed-text` (embeddings) se mantiene desde la Entrega 1. Si no estuviera en la lista
+cerrada de modelos de la cátedra, el sistema sigue andando con la mitad por palabras de la búsqueda
+híbrida.

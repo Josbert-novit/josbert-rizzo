@@ -29,6 +29,9 @@ class FilaParteInterna(BaseModel):
     fotos: list[str] = Field(default_factory=list)
     requiere_confirmacion: bool = False
     motivo_confirmacion: str | None = None
+    # Lote 5: el valor se dijo de una forma ambigua ("dieciocho" de diferencial): la pregunta lleva
+    # opciones para que cuente como pregunta (A4a), además del borrador.
+    ambiguedad_valor: bool = False
 
     def a_contrato(self) -> FilaParte:
         return FilaParte(
@@ -45,3 +48,5 @@ class Parte(BaseModel):
     nota_ids: list[str] = Field(default_factory=list)
     estado: EstadoParte = EstadoParte.borrador
     filas: list[FilaParteInterna] = Field(default_factory=list)
+    # Transcripción de la nota (Lote 4, H15): para detectar fallas dichas de palabra al confirmar.
+    texto: str = ""
