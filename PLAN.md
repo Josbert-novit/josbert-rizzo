@@ -743,6 +743,9 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 18/11 | `lote5b-completa` | contratista 21:14 · tormenta-perfecta 21:21 · sin-luz 21:26 · fuga-sin-enlace 21:29 · ataque 21:31 | sí | 21:02 | 21:05 | 21:31 | 29 min | **84.0 ✅** |
 | 18/11 | `lote5c-completa` | contratista 21:44 · tormenta-perfecta 21:51 · sin-luz 21:56 · fuga-sin-enlace 21:59 · ataque 22:02 | sí | 21:33 | 21:35 | 22:02 | 29 min | **87.5 ✅** |
 | 19/11 | `auditoria-e2-completa` (P0/P1 de la auditoría) | contratista 11:15 · tormenta-perfecta 11:22 · sin-luz 11:27 · fuga-sin-enlace 11:30 · ataque 11:34 | sí | 11:06 | — | 11:34 | 28 min | **88.0 ✅** (1er intento 11:05 abortó: puerto 8200 ocupado por el stack de la verificación en vivo) |
+| 19/11 | `g1-tarea-estandar` (tarea estándar por evidencia clara) | contratista 13:36 · tormenta-perfecta 13:43 · sin-luz 13:48 · fuga-sin-enlace 13:51 · ataque 13:55 | sí | 12:10 | 12:13 | 13:55 | 105 min | **87.4 ✅** (G1 100%, A2 tormenta 54%) |
+| 19/11 | `g1b-parser-cierre` (parser de cierre + prioridad de notas) | contratista 14:10 · tormenta-perfecta 14:17 · sin-luz 14:22 · fuga-sin-enlace 14:25 · ataque 14:29 | sí | 13:57 | 14:00 | 14:29 | 32 min | **84.7 ✅** (parser de cierre no reconoció la transcripción real; G1 50%) |
+| 19/11 | `g1c-parser-whisper` (parser de cierre robusto a Whisper) | contratista 14:44 · tormenta-perfecta 14:52 · sin-luz 14:57 · fuga-sin-enlace 15:00 · ataque 15:04 | sí | 14:32 | 14:35 | 15:04 | 32 min | **88.7 ✅** (G1 100%) |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 
@@ -1184,3 +1187,54 @@ aprueba (necesita 48 FC-CART-10 y hay 40 en yacimiento).
 lecturas de diferencial son de "el de la izquierda" (F-201A, 1.3 y 1.2); el filtro B aparece
 recién a las 20:01 y 02:23, después del corte. No hay una señal legítima de F07 antes del corte:
 queda como limitación, sin fabricar órdenes.
+
+### G1 — tarea estándar cuando la evidencia es clara (19/11, decisión del usuario: "sí, midiendo primero")
+
+El anexo pide inspección **solo** cuando la evidencia no alcanza ("Escalado, análisis, borrador,
+reglas, y Aprobada o Pendiente"). Antes proponíamos siempre I-VIB/I-VAL, así que nunca se
+aprobaba nada y el simulador nunca mandaba un cierre (G1 sin datos).
+
+- [x] G1.1 `procesamiento/ordenes.py::tarea_estandar_clara`: empaquetadura → T-B-EMP, aceite bajo
+  → T-B-ACE, correas → T-B-COR (lo dicho por el operador, solo en bombas, sin otra novedad ni
+  valores fuera de límite mezclados), y diferencial de filtro en alarma sostenida (sensor) →
+  T-F-CAR. La orden lleva los repuestos del catálogo y `evaluar_reglas` decide igual que siempre.
+  Interruptor: `ORDENES_TAREA_ESTANDAR` (por defecto activado).
+- [x] G1.2 `hay_reserva_disponible` alineada con el corrector: la reserva solo hace falta si el
+  equipo está en marcha.
+- [x] G1.3 Un equipo nombrado en una nota con alerta de seguridad nunca se aprueba solo: va a
+  revisión humana (anexo D, B-101 en `fuga-sin-enlace`, sin depender de que la visión esté disponible).
+- [x] G1.4 Medición offline **antes** de activarlo (`evaluacion/evaluar_tarea_estandar.py`, juzga con
+  las funciones de `puntuar.py` y la foto de la planta de cada decisión): sobre 80 órdenes de 21
+  corridas guardadas, 26 pasan a tarea estándar y 18 salen Aprobada (todas T-F-CAR en F-201A).
+  **0 aprobaciones indebidas, 0 D1 perdido, 0 D2 perdido.** Las 8 de empaquetadura en B-102
+  quedan Pendiente por falta de reserva, igual que espera el corrector.
+- [x] G1.5 Tests: 19 nuevos en `tests/test_cumplimiento_e2.py` → **428 passed**.
+- [x] G1.6 Corrida `g1-tarea-estandar` (12:10-13:55): **87.4/100, sin eliminatorias. G1 100%** (2
+  órdenes T-F-CAR de F-201A aprobadas solas → la planta mandó sus cierres → `Ejecutada`), D1 100%.
+  Pero A2 de `tormenta-perfecta` bajó 92% → 54%: el cierre llegó justo mientras entraban 4 notas,
+  su Whisper y su extracción LLM compitieron por la CPU (el cierre se cortó a los 90 s) y dos notas
+  mal transcriptas cayeron al LLM. Además el LLM del cierre **inventó** tareas y repuestos
+  (T-B-ROD, I-VIB, "C48") copiados de los ejemplos del prompt (H25).
+- [x] G1.7 (H25) `procesamiento/parser_cierre.py`: parser determinístico del cierre (frases fijas del
+  técnico, catálogos de tareas y repuestos, números con `planta_kit`), el LLM solo si no reconoce
+  ninguna tarea. Reconoce bien todos los casos de `cierres_ejemplo.json` y el cierre real.
+  Además el cierre espera (hasta 120 s) a que no haya notas ni respuestas en curso antes de
+  transcribir. 5 tests nuevos → **433 passed**.
+- [x] G1.8 Corrida `g1b-parser-cierre` (13:57-14:29): **84.7**, sin eliminatorias. El parser no
+  reconoció **ningún** cierre en vivo: Whisper deforma justo las palabras de anclaje ("Hice" → "y
+  se", "Usé cuarenta y ocho" → "C48", "filtrante" → "fitrante"), así que cayó al LLM, que en
+  `ataque` no terminó antes del fin del escenario (G1 50%). Audio real bajado de la planta y
+  transcripto con el mismo Whisper de la imagen del agente para verlo.
+- [x] G1.9 Parser reescrito para la transcripción real: busca los nombres del catálogo en todo el
+  texto (sin depender de "Hice"/"Usé" ni de la puntuación), compara palabras de forma aproximada,
+  exige que los números del nombre coincidan exacto ("25" no es "10"), lee la cantidad justo antes
+  del nombre ("cuarenta y ocho", "48", "un", "C48") y las horas en "3 con 2" / "2,8". Tests con las
+  dos transcripciones reales + todos los de `cierres_ejemplo.json` → **435 passed**.
+- [x] G1.10 Corrida `g1c-parser-whisper` (14:32-15:04): **88.7/100, APRUEBA, sin eliminatorias**
+  (versión anterior commiteada: 88.0). **G1 100%** (los dos cierres por el parser, en
+  milisegundos), D1 100%, A1 100%, A4a 100%, B1 98%, E2 100%. Se queda esta versión con
+  `ORDENES_TAREA_ESTANDAR=1`.
+  Limitación vista: en `tormenta-perfecta` Whisper transcribió "fueron dos seis horas" (2,6) como
+  "fueron 12 horas" (audio verificado a mano), y la comparación marcó "horas extra". Es una
+  diferencia para revisión humana, no cambia el estado de la orden.
+

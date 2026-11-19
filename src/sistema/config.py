@@ -36,6 +36,12 @@ class Config:
     # Como no bloquea nada más, puede esperar más tiempo antes de cortar.
     timeout_orden_s = float(os.getenv("TIMEOUT_ORDEN_S", "280"))
 
+    # G1 / Anexo C: con evidencia clara (empaquetadura, aceite, correas dichas por el operador, o
+    # diferencial de filtro en alarma sostenida) la orden propone la tarea del catálogo en vez de
+    # una inspección, y `evaluar_reglas` decide si se aprueba. Medido offline antes de activarlo
+    # (`evaluacion/evaluar_tarea_estandar.py`): 0 aprobaciones que el corrector considere indebidas.
+    ordenes_tarea_estandar = os.getenv("ORDENES_TAREA_ESTANDAR", "1").lower() not in ("0", "false", "no")
+
     postgres_host = os.getenv("POSTGRES_HOST", "postgres")
     postgres_port = int(os.getenv("POSTGRES_PORT", "5432"))
     postgres_db = os.getenv("POSTGRES_DB", "sistema")

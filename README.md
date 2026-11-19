@@ -140,9 +140,20 @@ Spec completa, con los bugs reales encontrados en cada paso: [docs/spec-parte-po
 
 Un evento `Escalado` (de los pasos 2 o 5 de arriba, o directo de un sensor sostenido) dispara un
 **router de pasos fijo**, no un agente libre. Desde el Lote 3 de la verificación final
-(`BUGS.md` #33) la orden que se **publica** sale en segundos y **sin LLM**: una orden de
-inspección (`I-VIB` para vibración, temperatura o ruido; `I-VAL` para el resto), evaluada por las
-reglas. Como esas tareas no son estándar, siempre queda `PendienteAprobacion`. El análisis con
+(`BUGS.md` #33) la orden que se **publica** sale en segundos y **sin LLM**, y siempre la evalúan
+las reglas:
+- Si la evidencia es clara, se propone la tarea del catálogo con sus repuestos:
+  - empaquetadura → `T-B-EMP`;
+  - aceite bajo → `T-B-ACE`;
+  - correas → `T-B-COR`;
+  - diferencial de filtro en alarma sostenida → `T-F-CAR`.
+
+  Si pasa las 5 reglas, sale `Aprobada` sola, y la planta manda después su cierre (G1).
+- Si la evidencia no alcanza, se propone una inspección: `I-VIB` para vibración, temperatura o
+  ruido, e `I-VAL` para el resto. No son tareas estándar, así que quedan `PendienteAprobacion`.
+
+Un equipo nombrado en una alerta de seguridad nunca se aprueba solo. El interruptor de este
+comportamiento es `ORDENES_TAREA_ESTANDAR` (activado por defecto). El análisis con
 LLM corre después, con menor prioridad, y queda solo como **sugerencia** para el planificador
 (`GET /api/ordenes/{id}/sugerencia`): nunca se publica, así que nunca decide el estado de una
 orden.
@@ -153,7 +164,7 @@ EventoSistema(Escalado)
        ├──────────────────────────────────────────────┐
        ▼                                              ▼ (después, sin apuro, pool propio)
 ┌─────────────────────┐   sin LLM, segundos       ┌─────────────────────┐ LLM local     ← llm/analisis.py
-│ 1. Orden inmediata    │   ← procesamiento/        │ Sugerencia: análisis  │ (parte,       + procesamiento/
+│ 1. Orden inmediata   │   ← procesamiento/        │ Sugerencia: análisis  │ (parte,       + procesamiento/
 │    de inspección       │     ordenes.py           │ + revisor (citas,     │ historian,      revisor.py
 │    (I-VIB / I-VAL);    │     ::orden_inmediata    │ repuestos)            │ RAG)
 │    no duplica una      │                          │ → se guarda, NUNCA    │

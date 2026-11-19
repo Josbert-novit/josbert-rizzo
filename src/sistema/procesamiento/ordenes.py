@@ -8,7 +8,7 @@ nada; `reglas_aprobacion.evaluar_reglas` es la ÚNICA función que decide si la 
 
 from __future__ import annotations
 
-from planta_contrato import EstadoOrden, EventoSistema, OrdenSistema
+from planta_contrato import EstadoOrden, EventoSistema, OrdenSistema, Repuesto
 
 from sistema.integraciones import materiales
 from sistema.integraciones.planta_http import PlantaHTTP
@@ -63,11 +63,72 @@ def tarea_de_inspeccion(evento: EventoSistema) -> str:
     return TAREA_INSPECCION_VALVULAS
 
 
-def _tarea_del_catalogo(codigo: str) -> dict:
-    for tarea in materiales.tareas_estandar() + materiales.tareas_no_estandar():
-        if tarea["codigo"] == codigo:
+def _tarea_del_catalogo(codigo: str, equipo: str | None = None) -> dict:
+    # T-F-CAR aparece dos veces en el catálogo (F-201A con FC-CART-25, F-201B con FC-CART-10):
+    # con el equipo se elige la entrada que le corresponde.
+    candidatas = [t for t in materiales.tareas_estandar() + materiales.tareas_no_estandar() if t["codigo"] == codigo]
+    for tarea in candidatas:
+        if equipo is None or equipo in tarea.get("equipos", [equipo]):
             return tarea
+    if candidatas:
+        return candidatas[0]
     return {"codigo": codigo, "detiene": True, "ejecutor": "propio"}  # conservador: no aprueba solo
+
+
+# --- Tarea estándar cuando la evidencia es clara (Anexo C, G1) -------------------------------
+#
+# El anexo: "Si la evidencia NO alcanza, la acción es una inspección (I-VIB o I-VAL)". Cuando sí
+# alcanza (el operador dice "pierde por la empaquetadura" o el sensor de diferencial de un filtro
+# está en alarma sostenida), corresponde la tarea real del catálogo, y la decisión de aprobarla
+# sigue siendo SOLO de `evaluar_reglas`. Se limita a fallas con una única tarea posible y sin otra
+# señal que la contradiga; ante cualquier mezcla (otra novedad, valores fuera de límite) se vuelve
+# a la inspección. Mapeo falla → tarea tomado del catálogo de la planta (`catalogo.py::resuelve`):
+# F01 empaquetadura → T-B-EMP, F04 aceite → T-B-ACE, F05 correas → T-B-COR, F07/F08 cartuchos → T-F-CAR.
+TAREA_POR_NOVEDAD = {
+    "pérdida por empaquetadura": "T-B-EMP",
+    "nivel de aceite bajo": "T-B-ACE",
+    "correas en mal estado": "T-B-COR",
+    "diferencial alto": "T-F-CAR",
+}
+# "pierde" sale junto con "empaquetadura" en casi toda nota de F01: no la contradice.
+_NOVEDADES_COMPATIBLES = {"T-B-EMP": {"pérdida"}}
+_PREFIJO_NOVEDAD = "El operador informa en "
+
+
+def _novedades_del_resumen(resumen: str) -> list[str] | None:
+    """Las novedades dichas que trae el resumen de un Escalado por parte. `None` si el resumen
+    trae además otra cosa (p. ej. valores fuera de límite): evidencia mezclada."""
+    partes = [p.strip() for p in resumen.split(". ") if p.strip()]
+    novedades, otras = [], []
+    for parte in partes:
+        if parte.startswith(_PREFIJO_NOVEDAD) and ":" in parte:
+            novedades += [n.strip().rstrip(".") for n in parte.split(":", 1)[1].split(",") if n.strip()]
+        else:
+            otras.append(parte)
+    return None if otras else novedades
+
+
+def tarea_estandar_clara(evento: EventoSistema) -> str | None:
+    """Código de tarea estándar si la evidencia del evento señala una sola falla sin dudas."""
+    equipo = evento.equipo
+    if not equipo:
+        return None
+    estandar_del_equipo = {t["codigo"] for t in materiales.tareas_estandar(equipo)}
+    if evento.origen == "sensor":
+        if "presion_diferencial" in evento.id and "T-F-CAR" in estandar_del_equipo:
+            return "T-F-CAR"
+        return None
+    novedades = _novedades_del_resumen(evento.resumen or "")
+    if not novedades:
+        return None
+    tareas = {TAREA_POR_NOVEDAD[n] for n in novedades if n in TAREA_POR_NOVEDAD}
+    if len(tareas) != 1:
+        return None
+    tarea = next(iter(tareas))
+    otras = {n for n in novedades if n not in TAREA_POR_NOVEDAD} - _NOVEDADES_COMPATIBLES.get(tarea, set())
+    if otras or tarea not in estandar_del_equipo:
+        return None
+    return tarea
 
 
 def orden_inmediata(
@@ -78,18 +139,23 @@ def orden_inmediata(
     costo_max_usd: float = 2500,
     almacen: str = "yacimiento",
     siempre_pendiente: frozenset[str] = frozenset(),
+    tarea_estandar: bool = False,
 ) -> OrdenSistema | None:
-    """`None` si el evento no tiene equipo (no hay sobre qué abrir una orden)."""
+    """`None` si el evento no tiene equipo (no hay sobre qué abrir una orden). Con
+    `tarea_estandar`, si la evidencia es clara se propone la tarea del catálogo (con sus
+    repuestos) en vez de una inspección; las reglas deciden igual."""
     if evento.tipo.value != "Escalado":
         raise ValueError(f"orden_inmediata espera un evento Escalado, llegó {evento.tipo!r}")
     if not evento.equipo:
         return None
-    tarea = _tarea_del_catalogo(tarea_de_inspeccion(evento))
+    codigo_claro = tarea_estandar_clara(evento) if tarea_estandar else None
+    tarea = _tarea_del_catalogo(codigo_claro or tarea_de_inspeccion(evento), evento.equipo)
+    repuestos = [Repuesto(**r) for r in tarea.get("repuestos", [])] if codigo_claro else []
     detiene = bool(tarea.get("detiene", True))
     borrador = OrdenSistema(
         id=f"ORD-{evento.id}", ts=evento.ts, estado=EstadoOrden.borrador, equipo=evento.equipo,
         evento_ids=[evento.id], tareas=[tarea["codigo"]], detiene_equipo=detiene,
-        reduce_inyeccion=False, ejecutor=tarea.get("ejecutor", "propio"), repuestos=[],
+        reduce_inyeccion=False, ejecutor=tarea.get("ejecutor", "propio"), repuestos=repuestos,
     )
     reserva = hay_reserva_disponible(borrador.equipo, http) if detiene else True
     # Anexo: `reduce_inyeccion` según la disponibilidad REAL de la reserva en este momento — si la
@@ -100,9 +166,10 @@ def orden_inmediata(
         costo_max_usd=costo_max_usd, almacen=almacen, siempre_pendiente=siempre_pendiente,
     )
     if motivos:
+        que = f"tarea {tarea['codigo']} propuesta por evidencia clara" if codigo_claro else "inspección propuesta por el sistema"
         return borrador.model_copy(update={
             "estado": EstadoOrden.pendiente,
-            "motivo": "inspección propuesta por el sistema; " + "; ".join(motivos),
+            "motivo": f"{que}; " + "; ".join(motivos),
         })
     return borrador.model_copy(update={"estado": EstadoOrden.aprobada})
 

@@ -170,7 +170,31 @@ eliminatorias** (antes 87.5).
 **Lo que sigue abajo y por qué**:
 - **F3 0%**: en `sin-luz` la única falla (F07 en F-201B) no da ninguna señal antes del corte (las
   lecturas del filtro B llegan después). No se fabrica una orden para esto.
-- **G1 sin datos**: el simulador solo manda cierres de órdenes `Aprobada`, y la orden inmediata es
-  siempre una inspección (no estándar → queda Pendiente). Ver el plan de G1 en `PLAN.md`.
+- **G1**: resuelto después de la auditoría (ver abajo).
 - **Visión sin probar en vivo**: falta la `NVIDIA_API_KEY`. Está implementada y testeada con un
   cliente falso.
+
+## G1: tarea estándar cuando la evidencia es clara, y cierre sin LLM (19/11)
+
+El anexo pide inspección solo cuando la evidencia no alcanza. Antes proponíamos siempre I-VIB o
+I-VAL, nunca se aprobaba nada y la planta nunca mandaba un cierre (G1 sin datos). Ahora:
+
+- Con evidencia clara, la orden propone la tarea del catálogo con sus repuestos. Los casos son:
+  empaquetadura, aceite bajo o correas dichos por el operador en una bomba, o el diferencial de
+  un filtro en alarma sostenida. `evaluar_reglas` sigue siendo la única que decide si sale
+  Aprobada. Un equipo nombrado en una alerta de seguridad nunca se aprueba solo.
+- Se midió **antes** de activarlo, con las funciones del corrector, sobre 80 órdenes de 21 corridas
+  guardadas: 0 aprobaciones indebidas, 0 puntos perdidos en D1 o D2.
+- El cierre se lee con un parser determinístico (`procesamiento/parser_cierre.py`) armado sobre la
+  transcripción real de Whisper. El LLM queda de respaldo: con los primeros cierres reales inventaba
+  tareas y repuestos, y tardaba más de 90 s.
+
+| Corrida | Nota | G1 | Nota técnica |
+| --- | ---: | ---: | --- |
+| `auditoria-e2-completa` | 88.0 | sin datos | nunca se aprueba nada |
+| `g1-tarea-estandar` | 87.4 | 100% | cierre con LLM: inventa y frena las notas |
+| `g1b-parser-cierre` | 84.7 | 50% | el parser no reconoce la transcripción real |
+| `g1c-parser-whisper` | **88.7** | **100%** | versión final |
+
+Costo: sigue en USD 0. El parser no usa modelos y el LLM local solo actúa de respaldo.
+

@@ -771,3 +771,26 @@ está vacía.
 **Arreglo**: la foto se baja de la planta y se manda embebida (data URI en base64). La respuesta
 ahora es por componente (empaquetadura, correas, acople, manómetro, filtro), con estado, hallazgo y
 la lectura del manómetro si se ve. Se tolera el JSON envuelto en texto.
+
+### 49. El LLM del cierre inventaba tareas y repuestos, y competía con las notas por la CPU (H25)
+**Dónde**: `src/sistema/agente.py::_procesar_cierre`, `src/sistema/llm/cierre.py`.
+**Bug**: con G1 activo llegaron los primeros cierres reales (corrida `g1-tarea-estandar`). El LLM
+local le atribuyó a un cambio de cartuchos las tareas T-B-ROD, T-B-ALI e I-VIB y el repuesto "C48",
+copiados de los ejemplos del prompt. Además el cierre (Whisper + LLM) llegó mientras entraban
+notas: se cortó a los 90 s y A2 de `tormenta-perfecta` bajó de 92% a 54%.
+**Arreglo**: `procesamiento/parser_cierre.py`, parser determinístico primero y LLM de respaldo. El
+cierre espera hasta 120 s a que no haya notas en curso antes de transcribir.
+
+### 50. El parser del cierre no reconocía la transcripción real de Whisper
+**Dónde**: `src/sistema/procesamiento/parser_cierre.py`.
+**Bug**: la primera versión se anclaba en "Hice", "Usé" y en la puntuación. El audio real, bajado
+de la planta y transcripto con el mismo Whisper, llega así: "…y se cambió de Cartuchos C48 Cartucho
+fitrante 25 micrones quedó en servicio… fueron 2,8 horas". No se reconoció ningún cierre en vivo y
+en `ataque` el LLM no terminó antes del fin del escenario (G1 50%).
+**Arreglo**: busca los nombres del catálogo en todo el texto, con comparación aproximada por
+palabra. Los números del nombre tienen que coincidir exacto. Lee la cantidad justo antes del nombre
+("cuarenta y ocho", "48", "un", "C48") y las horas en "3 con 2" o "2,8". Hay tests con las
+transcripciones reales. Corrida `g1c-parser-whisper`: G1 100%.
+**Por qué importa**: un parser se prueba contra lo que sale de Whisper, no contra el texto que se
+le dio al sintetizador de voz.
+

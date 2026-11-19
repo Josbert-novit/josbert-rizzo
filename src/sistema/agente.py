@@ -22,13 +22,14 @@ from sistema.config import config
 from sistema.integraciones.enlace import enlace_arriba
 from sistema.integraciones.planta_http import PlantaHTTP
 from sistema.llm.cierre import ExtractorCierre
-from sistema.llm.control import ConsumoTokens, analisis_orden_en_curso, trabajo_urgente
+from sistema.llm.control import ConsumoTokens, TrabajoUrgente, analisis_orden_en_curso, trabajo_urgente
 from sistema.llm.extraccion import Extractor
 from sistema.llm.transcripcion import Transcriptor
 from sistema.persistencia import fotos as persistencia_fotos
 from sistema.persistencia import memoria
 from sistema.persistencia import ordenes as persistencia_ordenes
 from sistema.procesamiento.cierres import comparar_cierre_con_orden
+from sistema.procesamiento.parser_cierre import parsear_cierre
 from sistema.procesamiento.dialogo import EstadoDialogo, construir_mensaje, detectar_loop, procesar_respuesta
 from sistema.procesamiento.eventos import DetectorSensores, eventos_del_parte
 from sistema.procesamiento.interpretacion import configurar_parser
@@ -75,6 +76,21 @@ def _urgente(funcion):
     @functools.wraps(funcion)
     def envuelta(*args, **kwargs):
         with trabajo_urgente:
+            return funcion(*args, **kwargs)
+
+    return envuelta
+
+
+# Notas y respuestas del operador en curso (no cierres ni órdenes): los cierres esperan a que esto
+# quede en cero antes de usar Whisper (ver `_procesar_cierre_con_menos_prioridad`).
+_notas_en_curso = TrabajoUrgente()
+ESPERA_CIERRE_S = 120.0
+
+
+def _de_nota(funcion):
+    @functools.wraps(funcion)
+    def envuelta(*args, **kwargs):
+        with _notas_en_curso:
             return funcion(*args, **kwargs)
 
     return envuelta
@@ -223,6 +239,7 @@ def _avanzar_dialogo(client: mqtt.Client, estado: EstadoDialogo) -> None:
 
 
 @_urgente
+@_de_nota
 def _procesar_respuesta_en_pool(client: mqtt.Client, estado: EstadoDialogo, texto_respuesta: str) -> None:
     try:
         procesar_respuesta(estado, texto_respuesta, extractor, resolver, verificador_rango)
@@ -287,6 +304,7 @@ def _escalar_novedades_dichas(client: mqtt.Client, nota: NotaRecorrida, texto: s
 
 
 @_urgente
+@_de_nota
 def _procesar_nota(client: mqtt.Client, nota: NotaRecorrida) -> None:
     texto = descargar_y_transcribir(nota, http, transcriptor)
 
@@ -297,6 +315,7 @@ def _procesar_nota(client: mqtt.Client, nota: NotaRecorrida) -> None:
     if deteccion is not None:
         evento = construir_evento(deteccion, nota)
         client.publish(Topicos.EVENTOS, evento.model_dump_json())
+        _marcar_revision_humana(texto)
         mensaje = construir_mensaje_tablet(deteccion, nota)
         client.publish(Topicos.TABLET, mensaje.model_dump_json())
         log.warning("ALERTA DE SEGURIDAD %s en nota %s: %s", deteccion.codigo, nota.id, deteccion.descripcion)
@@ -347,7 +366,11 @@ def _procesar_cierre(client: mqtt.Client, nota_cierre: NotaCierre) -> None:
                     nota_cierre.audio_url, config.media_dir / nota_cierre.id / "audio.wav"
                 )
                 texto = transcriptor.transcribir(audio_path)
-            cierre_extraido = extractor_cierre.extraer(texto)
+            # Parser primero (determinístico, milisegundos); el LLM solo si no reconoce ninguna tarea.
+            cierre_extraido = parsear_cierre(texto, [r.codigo for r in orden.repuestos])
+            log.info("cierre %s: extraccion=%s", nota_cierre.id, "parser" if cierre_extraido else "llm")
+            if cierre_extraido is None:
+                cierre_extraido = extractor_cierre.extraer(texto)
             diferencias = comparar_cierre_con_orden(cierre_extraido, orden)
         except Exception:
             log.exception("cierre %s: falló la comparación cierre/orden", nota_cierre.id)
@@ -364,17 +387,32 @@ def _procesar_cierre(client: mqtt.Client, nota_cierre: NotaCierre) -> None:
         conn.close()
 
 
+def _procesar_cierre_con_menos_prioridad(client: mqtt.Client, nota_cierre: NotaCierre) -> None:
+    """Medido en la corrida `g1-tarea-estandar`: un cierre que llega mientras entran notas compite
+    por la CPU (Whisper) con ellas, y las notas se demoran. El cierre no tiene apuro de segundos
+    (lo que importa es que la orden llegue a Ejecutada): espera hasta ESPERA_CIERRE_S a que no haya
+    ninguna nota ni respuesta del operador en curso, y recién ahí transcribe."""
+    esperado = 0.0
+    while _notas_en_curso.activo() and esperado < ESPERA_CIERRE_S:
+        time.sleep(0.5)
+        esperado += 0.5
+    if esperado:
+        log.info("cierre %s: esperó %.0f s a que terminaran las notas en curso", nota_cierre.id, esperado)
+    _procesar_cierre(client, nota_cierre)
+
+
 def _vigilar_corte_cierre(nota_cierre: NotaCierre, futuro) -> None:
+    limite = ESPERA_CIERRE_S + config.timeout_nota_s
     try:
-        futuro.result(timeout=config.timeout_nota_s)
+        futuro.result(timeout=limite)
     except FuturoTimeoutError:
-        log.error("cierre %s: no terminó de procesarse en %.0f s", nota_cierre.id, config.timeout_nota_s)
+        log.error("cierre %s: no terminó de procesarse en %.0f s", nota_cierre.id, limite)
     except Exception:
         log.exception("cierre %s: falló el procesamiento", nota_cierre.id)
 
 
 def _procesar_cierre_con_corte(client: mqtt.Client, nota_cierre: NotaCierre) -> None:
-    futuro = _pool_ordenes.submit(_procesar_cierre, client, nota_cierre)
+    futuro = _pool_ordenes.submit(_procesar_cierre_con_menos_prioridad, client, nota_cierre)
     threading.Thread(target=_vigilar_corte_cierre, args=(nota_cierre, futuro), daemon=True).start()
 
     # Fase 13: cualquier foto que venga con el cierre entra a la misma cola/análisis de visión
@@ -390,6 +428,24 @@ def _procesar_cierre_con_corte(client: mqtt.Client, nota_cierre: NotaCierre) -> 
 # casi simultáneos del mismo equipo no pueden abrir dos órdenes iguales.
 _lock_orden_inmediata = threading.Lock()
 
+# Equipos nombrados en una nota con alerta de seguridad: su orden nunca se aprueba sola, va a
+# revisión humana (Anexo D: "si las fotos muestran daño estructural grave, va siempre a revisión
+# humana — B-101 en fuga-sin-enlace"). Sin visión configurada, o con el análisis de la foto todavía
+# en cola por falta de enlace, el sistema no puede descartar ese daño: la alerta alcanza para no
+# aprobar solo. Vive en memoria: tras un reinicio se pierde, pero la orden ya publicada no cambia.
+_equipos_revision_humana: set[str] = set()
+
+
+def _marcar_revision_humana(texto: str) -> None:
+    try:
+        equipos = set(resolver.equipos_mencionados(texto))
+    except Exception:
+        log.exception("no se pudieron identificar los equipos de la alerta de seguridad")
+        return
+    if equipos:
+        _equipos_revision_humana.update(equipos)
+        log.warning("alerta de seguridad: %s quedan con revisión humana obligatoria", sorted(equipos))
+
 
 def _orden_inmediata_best_effort(evento: EventoSistema) -> None:
     """Lote 3 (Fase 15): la orden que se publica sale de acá, en código y sin LLM, en segundos —
@@ -397,7 +453,10 @@ def _orden_inmediata_best_effort(evento: EventoSistema) -> None:
     `pendiente_publicar=true` (Fase 12) en vez de publicar directo: si el agente se cae justo
     después, el hilo de reconciliación la publica en su próxima vuelta (F3)."""
     try:
-        orden = orden_inmediata(evento, http)
+        orden = orden_inmediata(
+            evento, http, tarea_estandar=config.ordenes_tarea_estandar,
+            siempre_pendiente=frozenset(_equipos_revision_humana),
+        )
     except Exception:
         log.exception("evento %s: no se pudo armar la orden inmediata", evento.id)
         return

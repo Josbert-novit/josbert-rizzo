@@ -31,12 +31,19 @@ def hay_reserva_disponible(equipo: str, http) -> bool:
     grupo (mismo prefijo, p. ej. B-101/B-102/B-103) está `parada` — disponible para arrancar en
     su lugar. Agrupa por prefijo (todo antes del último guion): alcanza para las bombas B-10x del
     anexo; si otro grupo de equipos no sigue esa convención, ver `academia2026-tp/planta/sim/
-    planta_sim/modelo.py` (campo `Bomba.estado`: `marcha | parada | mantenimiento | disparo`)."""
+    planta_sim/modelo.py` (campo `Bomba.estado`: `marcha | parada | mantenimiento | disparo`).
+
+    Si el equipo NO está en marcha (ya parado, disparado o en mantenimiento, o no es una bomba),
+    detenerlo para el trabajo no le saca nada a la inyección: la regla se cumple sin reserva. Es
+    el mismo criterio que usa el corrector (`puntuar.py::reglas`)."""
     estado = http.estado()
+    estados = {b["tag"]: b["estado"] for b in estado.get("bombas", [])}
+    if estados.get(equipo) != "marcha":
+        return True
     grupo = equipo.rsplit("-", 1)[0]
     return any(
-        b["tag"] != equipo and b["tag"].rsplit("-", 1)[0] == grupo and b["estado"] == "parada"
-        for b in estado.get("bombas", [])
+        tag != equipo and tag.rsplit("-", 1)[0] == grupo and e == "parada"
+        for tag, e in estados.items()
     )
 
 

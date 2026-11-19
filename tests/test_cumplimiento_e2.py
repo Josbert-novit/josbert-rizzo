@@ -379,3 +379,86 @@ def test_cliente_nim_completo_con_http_falso(monkeypatch):
     analisis = ClienteNvidiaNIM(api_key="k", modelo="m").analizar("/data/x.jpg")
     assert analisis.componente == "acople" and analisis.estado == "falla"
     assert enviado["messages"][0]["content"][1]["image_url"]["url"] == "data:image/jpeg;base64,AAA"
+
+
+# --- G1: tarea estándar cuando la evidencia es clara ------------------------------------------
+
+from sistema.procesamiento.ordenes import tarea_estandar_clara  # noqa: E402
+from sistema.procesamiento.reglas_aprobacion import hay_reserva_disponible  # noqa: E402
+
+
+def _ev(resumen, equipo="B-102", origen="parte", id_=None):
+    return EventoSistema(id=id_ or f"EVT-PARTE-PARTE-N1-{equipo}", ts=AHORA, tipo=TipoEvento.escalado,
+                         equipo=equipo, origen=origen, resumen=resumen)
+
+
+@pytest.mark.parametrize("resumen,equipo,esperado", [
+    ("El operador informa en B-102: pérdida por empaquetadura, pérdida", "B-102", "T-B-EMP"),
+    ("El operador informa en B-101: nivel de aceite bajo", "B-101", "T-B-ACE"),
+    ("El operador informa en B-103: correas en mal estado", "B-103", "T-B-COR"),
+    ("El operador informa en F-201A: diferencial alto", "F-201A", "T-F-CAR"),
+    # evidencia mezclada o no concluyente → inspección
+    ("El operador informa en B-102: pérdida", "B-102", None),
+    ("El operador informa en B-102: pérdida por empaquetadura, golpeteo metálico", "B-102", None),
+    ("El operador informa en B-101: nivel de aceite bajo, pérdida", "B-101", None),
+    ("Valores fuera de límite en la recorrida: x. El operador informa en B-102: pérdida por empaquetadura",
+     "B-102", None),
+    ("El operador informa en F-201A: pérdida por empaquetadura", "F-201A", None),  # no es tarea de un filtro
+])
+def test_tarea_estandar_clara_por_lo_dicho(resumen, equipo, esperado):
+    assert tarea_estandar_clara(_ev(resumen, equipo)) == esperado
+
+
+def test_tarea_estandar_clara_por_sensor_de_diferencial():
+    ev = _ev("F-201A/presion_diferencial sostenido en nivel alarma", "F-201A", "sensor",
+             "EVT-SENSOR-F-201A-presion_diferencial-x")
+    assert tarea_estandar_clara(ev) == "T-F-CAR"
+    vib = _ev("B-101/vibracion sostenida", "B-101", "sensor", "EVT-SENSOR-B-101-vibracion-x")
+    assert tarea_estandar_clara(vib) is None
+
+
+def test_con_tarea_estandar_y_reglas_ok_se_aprueba_sola():
+    ev = _ev("F-201A/presion_diferencial sostenido", "F-201A", "sensor", "EVT-SENSOR-F-201A-presion_diferencial-x")
+    orden = orden_inmediata(ev, HttpEstado({"B-101": "marcha", "B-102": "marcha", "B-103": "mantenimiento"}),
+                            tarea_estandar=True)
+    assert orden.estado == EstadoOrden.aprobada
+    assert orden.tareas == ["T-F-CAR"]
+    assert [(r.codigo, r.cantidad) for r in orden.repuestos] == [("FC-CART-25", 48)]
+
+
+def test_f201b_no_se_aprueba_por_stock_de_cartuchos():
+    ev = _ev("El operador informa en F-201B: diferencial alto", "F-201B")
+    orden = orden_inmediata(ev, HttpEstado({"B-101": "marcha"}), tarea_estandar=True)
+    assert orden.estado == EstadoOrden.pendiente and orden.tareas == ["T-F-CAR"]
+    assert orden.repuestos[0].codigo == "FC-CART-10"
+    assert "T-F-CAR propuesta por evidencia clara" in orden.motivo
+
+
+def test_empaquetadura_sin_reserva_queda_pendiente_y_con_reserva_se_aprueba():
+    ev = _ev("El operador informa en B-102: pérdida por empaquetadura, pérdida")
+    sin = orden_inmediata(ev, HttpEstado({"B-101": "marcha", "B-102": "marcha", "B-103": "mantenimiento"}),
+                          tarea_estandar=True)
+    assert sin.estado == EstadoOrden.pendiente and sin.reduce_inyeccion is True
+    con = orden_inmediata(ev, HttpEstado({"B-101": "marcha", "B-102": "marcha", "B-103": "parada"}),
+                          tarea_estandar=True)
+    assert con.estado == EstadoOrden.aprobada and con.reduce_inyeccion is False
+
+
+def test_alerta_de_seguridad_fuerza_revision_humana():
+    ev = _ev("El operador informa en B-101: pérdida por empaquetadura", "B-101")
+    orden = orden_inmediata(ev, HttpEstado({"B-101": "marcha", "B-103": "parada"}), tarea_estandar=True,
+                            siempre_pendiente=frozenset({"B-101"}))
+    assert orden.estado == EstadoOrden.pendiente
+
+
+def test_sin_el_interruptor_sigue_siendo_inspeccion():
+    ev = _ev("El operador informa en B-102: pérdida por empaquetadura")
+    assert orden_inmediata(ev, HttpEstado({"B-103": "parada"})).tareas == ["I-VAL"]
+
+
+@pytest.mark.parametrize("propio,esperado", [("marcha", False), ("parada", True), ("disparo", True),
+                                             ("mantenimiento", True)])
+def test_reserva_solo_hace_falta_si_el_equipo_esta_en_marcha(propio, esperado):
+    """Mismo criterio que el corrector: detener un equipo que ya no inyecta no reduce la inyección."""
+    http = HttpEstado({"B-101": "marcha", "B-102": propio, "B-103": "mantenimiento"})
+    assert hay_reserva_disponible("B-102", http) is esperado
