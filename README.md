@@ -164,9 +164,9 @@ EventoSistema(Escalado)
        ├──────────────────────────────────────────────┐
        ▼                                              ▼ (después, sin apuro, pool propio)
 ┌─────────────────────┐   sin LLM, segundos       ┌─────────────────────┐ LLM local     ← llm/analisis.py
-│ 1. Orden inmediata   │   ← procesamiento/        │ Sugerencia: análisis  │ (parte,       + procesamiento/
-│    de inspección       │     ordenes.py           │ + revisor (citas,     │ historian,      revisor.py
-│    (I-VIB / I-VAL);    │     ::orden_inmediata    │ repuestos)            │ RAG)
+│ 1. Orden inmediata    │   ← procesamiento/        │ Sugerencia: análisis  │ (parte,       + procesamiento/
+│    tarea clara o       │     ordenes.py           │ + revisor (citas,     │ historian,      revisor.py
+│    inspección;         │     ::orden_inmediata    │ repuestos)            │ RAG)
 │    no duplica una      │                          │ → se guarda, NUNCA    │
 │    orden abierta igual │                          │   se publica          │
 └──────────┬───────────┘                          └─────────────────────┘
