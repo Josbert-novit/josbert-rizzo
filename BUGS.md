@@ -730,3 +730,44 @@ extractor LLM tiene timeout de 45 s y, si falla o se pasa, se usa lo que entendi
 ambigüedad de equipo se pregunta aunque la fila no tenga valor.
 **Por qué importa**: un respaldo lento no puede ser bloqueante, y hay que poder decidir de antemano
 que no vale la pena llamarlo.
+
+## Auditoría de cumplimiento del Anexo Entrega 2 (19/11)
+
+### 44. Todo cierre por MQTT reventaba con `NameError` (G1)
+**Dónde**: `src/sistema/agente.py::_procesar_cierre_con_corte`.
+**Bug**: el log final usaba `diferencias`, que solo existe dentro de `_procesar_cierre`. Cada
+`NotaCierre` levantaba `NameError` dentro de `on_message`. No apareció en ninguna corrida porque
+el corrector solo manda cierres de órdenes `Aprobada`, y el sistema nunca publicó una.
+**Arreglo**: el log se movió adentro de `_procesar_cierre`, junto al correlation ID. Hay un test
+que llama a `_procesar_cierre_con_corte` de punta a punta.
+**Por qué importa**: un camino que el corrector no ejercita también necesita un test que lo
+recorra entero.
+
+### 45. Un cierre pasaba a `Ejecutada` cualquier orden, incluso Pendiente o ya Certificada
+**Dónde**: `src/sistema/agente.py::_procesar_cierre`.
+**Arreglo**: solo una orden `Aprobada` pasa a `Ejecutada`. Si ya estaba `Ejecutada`, el cierre se
+toma como repetido y se ignora. En cualquier otro estado queda una advertencia en el log y la orden
+no cambia.
+
+### 46. `reduce_inyeccion` siempre en `False`
+**Dónde**: `src/sistema/procesamiento/ordenes.py`.
+**Arreglo**: ahora vale `detiene_equipo and not reserva`, calculado con la reserva real en ese
+momento (`/api/estado`), como pide el anexo. El corrector no mide este campo; la revisión manual sí.
+
+### 47. El patrón "válvulas en dos bombas → cartucho de F-201B" no podía dispararse nunca
+**Dónde**: `src/sistema/llm/analisis.py::armar_contexto`.
+**Bug**: el contexto solo pedía el historial de órdenes del propio equipo, así que el patrón que
+cruza bombas no tenía con qué compararse. Además faltaba la quinta causa repetida del anexo
+(B-102 que cavita → filtro primario colmatado).
+**Arreglo**: se pide además el historial de toda la planta de los últimos 10 días, y solo cuentan
+las bombas. Para la cavitación se usa `codigo_falla` F09 o, como el historial es texto libre de
+campo, la palabra "cavit…" en el aviso o en el trabajo realizado.
+
+### 48. La visión mandaba a la nube una URL interna de la planta
+**Dónde**: `src/sistema/llm/vision.py`.
+**Bug**: las fotos viven en `http://sim:8100/data/...`, dentro de `planta-lan`. NVIDIA NIM no puede
+bajarlas, así que con una API key el análisis hubiera fallado igual. Nunca se vio porque la key
+está vacía.
+**Arreglo**: la foto se baja de la planta y se manda embebida (data URI en base64). La respuesta
+ahora es por componente (empaquetadura, correas, acople, manómetro, filtro), con estado, hallazgo y
+la lectura del manómetro si se ve. Se tolera el JSON envuelto en texto.

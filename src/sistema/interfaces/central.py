@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sistema.config import config
 from sistema.persistencia import ordenes as persistencia_ordenes
 from sistema.procesamiento.certificacion import calcular_monto_habilita_usd
+from sistema.procesamiento.ordenes import detalle_repuestos
 
 app = FastAPI(title="Central de mantenimiento")
 
@@ -60,6 +61,15 @@ class CertificacionBody(BaseModel):
     habilita: str  # número HAB-AAAA-NNNN que asigna el certificador (3.4); el monto lo calcula el sistema
 
 
+def _vista(orden: OrdenSistema, detalle: bool = False) -> dict:
+    """La orden tal como se publica + el correlation ID; con `detalle`, también los repuestos con
+    disponibilidad y costo unitario (dato que el contrato MQTT no admite)."""
+    vista = orden.model_dump(mode="json") | {"correlacion_id": persistencia_ordenes.correlacion_id(orden)}
+    if detalle:
+        vista["repuestos_detalle"] = detalle_repuestos(orden)
+    return vista
+
+
 def _cargar_o_404(conn, orden_id: str) -> OrdenSistema:
     orden = persistencia_ordenes.cargar(conn, orden_id)
     if orden is None:
@@ -79,14 +89,14 @@ def _actualizar(orden_id: str, cambios: dict, desde: EstadoOrden | None = None) 
         persistencia_ordenes.guardar(conn, actualizada, pendiente_publicar=True)
     finally:
         conn.close()
-    return actualizada.model_dump(mode="json")
+    return _vista(actualizada)
 
 
 @app.get("/api/ordenes")
 def listar_ordenes() -> list[dict]:
     conn = persistencia_ordenes.conectar()
     try:
-        return [o.model_dump(mode="json") for o in persistencia_ordenes.cargar_todas(conn)]
+        return [_vista(o) for o in persistencia_ordenes.cargar_todas(conn)]
     finally:
         conn.close()
 
@@ -100,14 +110,14 @@ def listar_ordenes_pendientes() -> list[dict]:
         todas = persistencia_ordenes.cargar_todas(conn)
     finally:
         conn.close()
-    return [o.model_dump(mode="json") for o in todas if o.estado == EstadoOrden.pendiente]
+    return [_vista(o) for o in todas if o.estado == EstadoOrden.pendiente]
 
 
 @app.get("/api/ordenes/{orden_id}")
 def obtener_orden(orden_id: str) -> dict:
     conn = persistencia_ordenes.conectar()
     try:
-        return _cargar_o_404(conn, orden_id).model_dump(mode="json")
+        return _vista(_cargar_o_404(conn, orden_id), detalle=True)
     finally:
         conn.close()
 

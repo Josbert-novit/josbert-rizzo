@@ -34,7 +34,8 @@ def reabrir_orden_si_danio_estructural(conn, orden_id: str, analisis: AnalisisFo
         return False
     reabierta = orden.model_copy(update={
         "estado": EstadoOrden.pendiente,
-        "motivo": f"daño estructural detectado en foto (análisis tardío): {analisis.descripcion}",
+        "motivo": (f"daño estructural detectado en foto (análisis tardío, {analisis.componente}): "
+                   f"{analisis.hallazgo or analisis.descripcion}"),
     })
     persistencia_ordenes.guardar(conn, reabierta, pendiente_publicar=True)
     return True

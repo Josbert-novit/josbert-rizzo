@@ -4,6 +4,7 @@ una recorrida — es un dominio distinto (tareas realizadas, repuestos declarado
 es un extractor aparte en vez de forzar `Extractor`/`FilasExtraidas` a servir para dos cosas.
 """
 
+import re
 from typing import Protocol
 
 from planta_contrato import Repuesto
@@ -22,6 +23,7 @@ cigüeñal = T-B-ROD, alineación láser de acople = T-B-ALI, análisis de vibra
 I-VIB).
 - repuestos: cada repuesto que diga haber usado, con su código del catálogo y la cantidad.
 - horas: las horas que dice haber trabajado, si las menciona.
+- resultado_prueba: la frase con el resultado de la prueba final, tal como la dice (p. ej. "probé a ciento diez kilos, sin pérdida"), o null si no menciona ninguna prueba.
 
 No inventes nada que el texto no diga. Si no se menciona una hora, dejala null."""
 
@@ -31,6 +33,17 @@ class CierreExtraido(BaseModel):
     tareas: list[str] = Field(default_factory=list)
     repuestos: list[Repuesto] = Field(default_factory=list)
     horas: float | None = None
+    resultado_prueba: str | None = None
+
+
+_PATRON_PRUEBA = re.compile(r"\bprob[ée]\b[^.]*", re.IGNORECASE)
+
+
+def resultado_prueba_del_texto(texto: str) -> str | None:
+    """Respaldo determinístico para el resultado de la prueba ("Probé a 110 kilos, sin pérdida."):
+    si el LLM no lo extrae, se toma la oración literal que empieza con "probé"."""
+    m = _PATRON_PRUEBA.search(texto or "")
+    return m.group(0).strip() if m else None
 
 
 class ChatEstructurado(Protocol):
@@ -56,5 +69,11 @@ class ExtractorCierre:
         chat = self._cargar_chat()
         mensajes = [("system", PROMPT_SISTEMA), ("human", texto)]
         if consumo is None:
-            return chat.invoke(mensajes)
-        return chat.invoke(mensajes, config=config_de_callback(consumo))
+            cierre = chat.invoke(mensajes)
+        else:
+            cierre = chat.invoke(mensajes, config=config_de_callback(consumo))
+        if not cierre.resultado_prueba:
+            respaldo = resultado_prueba_del_texto(texto)
+            if respaldo:
+                cierre = cierre.model_copy(update={"resultado_prueba": respaldo})
+        return cierre

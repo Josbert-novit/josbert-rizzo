@@ -75,8 +75,24 @@ curl -X POST http://localhost:8200/api/ordenes/ORD-1/observar \
     -H 'Content-Type: application/json' -d '{"motivo": "movilización cobrada sin corresponder"}'
 ```
 
-El cierre por voz (`planta/cierres`, Fase 14) ya mueve la orden a `Ejecutada` solo — estos
-endpoints de cierre/certificación son el paso humano siguiente, después de `Ejecutada`.
+El cierre por voz (`planta/cierres`, Fase 14) mueve la orden a `Ejecutada` solo, y únicamente si
+estaba `Aprobada`. Además marca cada diferencia con la orden en `motivo`: tareas pedidas que no se
+hicieron, repuestos reservados que no se usaron o que se usaron de más, horas extra y prueba
+final faltante o con pérdida. Los endpoints de cierre y certificación son el paso humano
+siguiente, después de `Ejecutada`.
+
+`GET /api/ordenes/{id}` devuelve además:
+- `correlacion_id`: el evento raíz que abrió la orden. Une evento, orden y cierre, y aparece en los
+  logs del agente como `[correlacion=...]`.
+- `repuestos_detalle`: cada repuesto con su disponibilidad (`yacimiento`, `central` o `sin stock`)
+  y su costo unitario y total.
+
+Ninguno de los dos viaja por `sistema/ordenes`, porque el `OrdenSistema` del contrato no admite
+campos extra.
+
+Verificación en vivo de todo este flujo (orden sembrada, apagado de golpe, transiciones, cierre
+por MQTT, certificación y cola de fotos sin enlace), con el stack arriba:
+`.venv/Scripts/python -m evaluacion.verificar_entrega2`.
 
 Cada endpoint solo cambia el `estado` de la orden — nunca re-decide `Aprobada`/`PendienteAprobacion`
 (esa decisión es exclusiva de `procesamiento/reglas_aprobacion.py`, Fase 9). Se persiste en

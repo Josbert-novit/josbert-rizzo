@@ -67,7 +67,28 @@ HINTS_CAUSA_REPETIDA = {
         "B-102 con consumo de aceite elevado y repetido: la causa probable es el retén del "
         "piñón, no alcanza con reponer aceite de nuevo."
     ),
+    ("B-102", "F09"): (
+        "B-102 cavita de forma repetida: la causa probable es el filtro primario colmatado aguas "
+        "arriba (F-201A/F-201B), no la bomba — revisar el diferencial del filtro antes que la bomba."
+    ),
 }
+
+# Ventana de "pocos días" para el patrón que cruza equipos (válvulas en más de una bomba).
+VENTANA_PATRON_CRUZADO_DIAS = 10
+_PALABRAS_CAVITACION = ("cavit",)
+
+
+def _senales_de_orden(orden: dict) -> list[str]:
+    """Lo que una orden del historial aporta para los patrones repetidos: sus códigos de tarea,
+    su código de falla y, como el historial es texto libre de campo, "F09" si el aviso o el
+    trabajo realizado hablan de cavitación aunque no traigan el código."""
+    senales = list(orden.get("tareas") or [])
+    if orden.get("codigo_falla"):
+        senales.append(orden["codigo_falla"])
+    texto = f"{orden.get('aviso') or ''} {orden.get('trabajo_realizado') or ''}".lower()
+    if orden.get("codigo_falla") != "F09" and any(p in texto for p in _PALABRAS_CAVITACION):
+        senales.append("F09")
+    return senales
 
 PROMPT_SISTEMA = """Sos un analista de mantenimiento de una planta de inyección de agua. A \
 partir de la evidencia de un evento escalado (parte, tendencia, manuales, historial), proponé:
@@ -159,16 +180,24 @@ def detectar_codigo_falla(texto: str, traductor: TraductorFallas) -> str | None:
     return None
 
 
-def _hint_causa_repetida(equipo: str | None, ordenes_previas: list[dict]) -> str | None:
+def _hint_causa_repetida(
+    equipo: str | None, ordenes_previas: list[dict], ordenes_recientes_todas: list[dict] | None = None,
+) -> str | None:
+    """`ordenes_previas`: historial (del equipo o de toda la planta). `ordenes_recientes_todas`:
+    órdenes de TODOS los equipos en los últimos días, para el patrón que cruza bombas (válvulas
+    gastadas en dos bombas en pocos días → cartucho roto en F-201B). Si no se pasa, se usa
+    `ordenes_previas`."""
     if equipo is None:
         return None
-    tareas_del_equipo = [t for o in ordenes_previas if o.get("equipo") == equipo for t in o.get("tareas", [])]
-    tareas_todas = [t for o in ordenes_previas for t in o.get("tareas", [])]
-    for (eq, tarea), hint in HINTS_CAUSA_REPETIDA.items():
+    cruzadas = ordenes_previas if ordenes_recientes_todas is None else ordenes_recientes_todas
+    senales_del_equipo = [s for o in ordenes_previas if o.get("equipo") == equipo for s in _senales_de_orden(o)]
+    for (eq, senal), hint in HINTS_CAUSA_REPETIDA.items():
         if eq is None:
-            if tareas_todas.count(tarea) >= 2:
+            bombas = {o.get("equipo") for o in cruzadas
+                      if str(o.get("equipo", "")).startswith("B-") and senal in _senales_de_orden(o)}
+            if len(bombas) >= 2:
                 return hint
-        elif eq == equipo and tareas_del_equipo.count(tarea) >= 2:
+        elif eq == equipo and senales_del_equipo.count(senal) >= 2:
             return hint
     return None
 
@@ -213,7 +242,12 @@ def armar_contexto(
             ordenes_previas = http.historial_ordenes(equipo=evento.equipo)
         except Exception:
             ordenes_previas = []
-        hint = _hint_causa_repetida(evento.equipo, ordenes_previas)
+        try:
+            desde_cruzado = (evento.ts - timedelta(days=VENTANA_PATRON_CRUZADO_DIAS)).isoformat()
+            recientes_todas = http.historial_ordenes(desde=desde_cruzado, hasta=evento.ts.isoformat())
+        except Exception:
+            recientes_todas = []
+        hint = _hint_causa_repetida(evento.equipo, ordenes_previas, recientes_todas)
         if hint:
             partes.append(f"Hint (patrón repetido en el historial de órdenes): {hint}")
 

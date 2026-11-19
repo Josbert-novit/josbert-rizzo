@@ -60,6 +60,7 @@ def _estado_a_json(estado: EstadoDialogo) -> dict:
             "tokens_respuesta": estado.consumo.tokens_respuesta,
         },
         "intentos_desambiguacion": estado.intentos_desambiguacion,
+        "firmas_preguntas": estado.firmas_preguntas,
     }
 
 
@@ -70,6 +71,7 @@ def _json_a_estado(datos: dict) -> EstadoDialogo:
         fila_en_pregunta=datos["fila_en_pregunta"],
         consumo=ConsumoTokens(**datos["consumo"]),
         intentos_desambiguacion={int(k): v for k, v in datos["intentos_desambiguacion"].items()},
+        firmas_preguntas=list(datos.get("firmas_preguntas", [])),
     )
 
 

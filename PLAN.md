@@ -742,6 +742,7 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 18/11 | `lote5-completa` | contratista 20:43 · tormenta-perfecta 20:49 · sin-luz 20:54 · fuga-sin-enlace 20:57 · ataque 21:00 | sí | 20:33 | 20:36 | 21:00 | 27 min | **80.8 ✅** |
 | 18/11 | `lote5b-completa` | contratista 21:14 · tormenta-perfecta 21:21 · sin-luz 21:26 · fuga-sin-enlace 21:29 · ataque 21:31 | sí | 21:02 | 21:05 | 21:31 | 29 min | **84.0 ✅** |
 | 18/11 | `lote5c-completa` | contratista 21:44 · tormenta-perfecta 21:51 · sin-luz 21:56 · fuga-sin-enlace 21:59 · ataque 22:02 | sí | 21:33 | 21:35 | 22:02 | 29 min | **87.5 ✅** |
+| 19/11 | `auditoria-e2-completa` (P0/P1 de la auditoría) | contratista 11:15 · tormenta-perfecta 11:22 · sin-luz 11:27 · fuga-sin-enlace 11:30 · ataque 11:34 | sí | 11:06 | — | 11:34 | 28 min | **88.0 ✅** (1er intento 11:05 abortó: puerto 8200 ocupado por el stack de la verificación en vivo) |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 
@@ -1131,3 +1132,55 @@ cátedra (`planta_kit`) trae ese parser y el intérprete de respuestas.
   - **G1 sin datos**: ningún escenario de la rúbrica mandó cierres en estas corridas.
 
 - Este archivo se actualiza a medida que avanzamos (marco `[x]` lo hecho).
+
+### Auditoría de cumplimiento del Anexo Entrega 2 (19/11) — P0/P1
+
+Plan: `C:/Users/josbe/.claude/plans/crea-un-plan-de-lovely-wadler.md`. Se recorrió el anexo punto
+por punto contra el código. Alcance acordado: P0 + P1 completos; G1/F3 **solo análisis**, sin
+tocar la decisión de aprobación. Bugs #44 a #48 en `BUGS.md`. Tests: `tests/test_cumplimiento_e2.py`
+→ **409 passed** (antes 374). `evaluar_parser` sin cambios: 381/462 notas perfectas (82.5%).
+
+- [x] A1 (P0) `NameError` en cada cierre por MQTT (#44) + cierre solo sobre órdenes `Aprobada` (#45).
+- [x] A2 (P0) `reduce_inyeccion` según la reserva real (#46).
+- [x] A3 (P1) Las 5 causas repetidas del anexo; el patrón que cruza bombas ahora mira toda la planta (#47).
+- [x] A4 (P1) Cierre: `resultado_prueba` (LLM + respaldo por regex sobre "probé…"), y la comparación
+  marca también las tareas pedidas que no se hicieron, los repuestos reservados que no se usaron,
+  las horas extra (más de 25% sobre las del catálogo, calibrado con `cierres_ejemplo.json`) y la
+  prueba faltante o con pérdida. Tests contra los casos reales de `cierres_ejemplo.json`
+  (movilización, horas extra, lista vieja, repuesto no autorizado).
+- [x] A5 (P1) Correlation ID = evento raíz (`evento_ids[0]`): columna generada en `ordenes`, en los
+  logs de orden/cierre y en la central (`correlacion_id`). No viaja por MQTT (contrato `extra=forbid`).
+- [x] A6 (P1) Repuestos con disponibilidad (yacimiento/central/sin stock) y costo unitario en
+  `GET /api/ordenes/{id}` (`repuestos_detalle`). El `Repuesto` del contrato no lo admite.
+- [x] A7 (P1) Detección de loops en el diálogo: la misma pregunta por cuarta vez, o más de 12
+  turnos, cierra el parte para revisión manual. Nunca se adelanta a los topes que ya existían
+  (3 intentos de desambiguación). Las firmas se persisten con el diálogo.
+- [x] A8 (P1) Visión por componente + foto embebida en vez de URL interna (#48).
+- [x] A9 (P3) `evaluacion/verificar_entrega2.py`: guion en vivo (persistencia, kill de agente +
+  Postgres, transiciones HTTP, cierre por MQTT, certificación, cola de fotos sin enlace).
+  **Resultado (19/11, 11:04-11:05): 32/32 chequeos OK.** Las órdenes sobreviven al kill de
+  agente + Postgres con el mismo id y estado, sin duplicados. El cierre sobre una orden no
+  aprobada no la ejecuta. El habilita de I-VIB da USD 960. El latido muestra pendientes > 0 con el
+  enlace caído y vuelve a 0 cuando vuelve el enlace.
+- [x] A10 (P3) Corrida final `auditoria-e2-completa` (5 escenarios, con build, 11:06-11:34):
+  **88.0/100, APRUEBA, sin eliminatorias** (lote5c: 87.5). A2 69%, A3 81%, A4a 88%, A4b 97%,
+  B1 99%, B2 100%, D1 100%, D2 75%, E1 100%, E2 75%, E3 100%, F1/F2 100%, F3 0%, G1 sin datos.
+  Los movimientos respecto de lote5c (A3 +12, B1 +5, A4a -12, E2 -25 en tormenta) están dentro del
+  ruido entre corridas: ninguno de los arreglos de la auditoría toca el parte ni el latido, y la
+  detección de loops no se disparó. El correlation ID aparece en los logs de cada orden. F3 y G1
+  siguen igual, como se esperaba (ver los análisis de abajo).
+
+**Análisis de G1 (sin cambios de código, decisión del usuario)**: el simulador solo manda un
+`NotaCierre` cuando ve una orden `Aprobada`, y nuestras órdenes inmediatas son I-VIB/I-VAL (no
+estándar → siempre Pendiente). Para tener G1 habría que proponer una tarea **estándar** cuando la
+novedad dicha la identifica sin dudas (empaquetadura → T-B-EMP, correas → T-B-COR, aceite →
+T-B-ACE) y dejar que `evaluar_reglas` decida. Antes de hacerlo hay que alinear la regla de reserva
+con la del corrector (`puntuar.py::reglas`): el corrector solo exige reserva si el equipo está en
+`marcha` y no restringe al grupo, y nuestra versión es más estricta (daría Pendiente donde el
+corrector espera Aprobada → D1 baja, sin riesgo de eliminatoria). Ojo: T-F-CAR en F-201B nunca se
+aprueba (necesita 48 FC-CART-10 y hay 40 en yacimiento).
+
+**Análisis de F3**: confirmado sobre `lote5c-completa/sin-luz.json`. Antes del corte (15:30) las
+lecturas de diferencial son de "el de la izquierda" (F-201A, 1.3 y 1.2); el filtro B aparece
+recién a las 20:01 y 02:23, después del corte. No hay una señal legítima de F07 antes del corte:
+queda como limitación, sin fabricar órdenes.

@@ -54,6 +54,7 @@ def test_declara_mas_cantidad_de_un_repuesto_autorizado():
 
 def test_declara_igual_o_menos_cantidad_no_da_diferencia():
     orden = _orden(["T-B-ALI"], repuestos=[("ACO-ELAST-90", 1)])
-    cierre = CierreExtraido(tareas=["T-B-ALI"], repuestos=[Repuesto(codigo="ACO-ELAST-90", cantidad=1)])
+    cierre = CierreExtraido(tareas=["T-B-ALI"], repuestos=[Repuesto(codigo="ACO-ELAST-90", cantidad=1)],
+                            resultado_prueba="Probé a 110 kilos, sin pérdida")
 
     assert comparar_cierre_con_orden(cierre, orden) == []

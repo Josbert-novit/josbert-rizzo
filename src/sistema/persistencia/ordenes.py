@@ -25,6 +25,12 @@ CREATE TABLE IF NOT EXISTS ordenes (
     pendiente_publicar BOOLEAN NOT NULL DEFAULT true,
     actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Correlation ID (Anexo 3.3): une evento -> orden -> cierre. Es el id del evento raíz que abrió la
+-- orden (el primero de `evento_ids`; los escalados que se suman después no lo cambian). El cierre
+-- llega con `orden_id`, así que la cadena completa se reconstruye con una sola consulta.
+ALTER TABLE ordenes ADD COLUMN IF NOT EXISTS correlacion_id TEXT
+    GENERATED ALWAYS AS (orden->'evento_ids'->>0) STORED;
+CREATE INDEX IF NOT EXISTS ordenes_correlacion_idx ON ordenes (correlacion_id);
 CREATE INDEX IF NOT EXISTS ordenes_pendiente_publicar_idx ON ordenes (pendiente_publicar) WHERE pendiente_publicar;
 
 -- Lote 3 (Fase 15): lo que propone el análisis con LLM para una orden ya publicada. Es una
@@ -36,6 +42,11 @@ CREATE TABLE IF NOT EXISTS sugerencias_ordenes (
     creada_en TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 """
+
+
+def correlacion_id(orden: OrdenSistema) -> str:
+    """Mismo valor que la columna generada `correlacion_id`: el evento raíz de la orden."""
+    return orden.evento_ids[0] if orden.evento_ids else orden.id
 
 
 def conectar() -> psycopg.Connection:

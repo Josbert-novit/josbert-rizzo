@@ -144,3 +144,33 @@ visión (fotos), que queda en cola si no hay enlace. El costo en USD sigue siend
 `nomic-embed-text` (embeddings) se mantiene desde la Entrega 1. Si no estuviera en la lista
 cerrada de modelos de la cátedra, el sistema sigue andando con la mitad por palabras de la búsqueda
 híbrida.
+
+## Auditoría de cumplimiento del anexo (19/11)
+
+Se revisó el Anexo de la Entrega 2 punto por punto contra el código. Lo que faltaba o estaba roto
+(detalle en `BUGS.md` #44 a #48):
+
+| Requisito del anexo | Qué cambió |
+| --- | --- |
+| Cierre → `Ejecutada` (G) | Cada cierre por MQTT fallaba con `NameError` (#44). Ahora solo una orden `Aprobada` pasa a `Ejecutada` (#45). |
+| Comparar el cierre con la orden | Además de lo declarado de más, marca tareas pedidas no hechas, repuestos reservados no usados, horas extra y prueba faltante o con pérdida. Se extrae el resultado de la prueba ("probé a ciento diez kilos, sin pérdida"). Validado con `cierres_ejemplo.json`. |
+| `reduce_inyeccion` según la reserva real | Antes era siempre `False` (#46). |
+| Las 5 causas repetidas del historial | Faltaba B-102 que cavita → filtro primario. El patrón "válvulas en dos bombas" no podía dispararse (#47). |
+| Correlation ID evento → orden → cierre | Evento raíz de la orden: columna en Postgres, logs y central. |
+| Repuestos con disponibilidad y costo | `GET /api/ordenes/{id}` → `repuestos_detalle`. El contrato MQTT no admite esos campos. |
+| Detección de loops | La misma pregunta por cuarta vez, o más de 12 turnos, cierra el diálogo para revisión manual. |
+| Visión por componente | Empaquetadura, correas, acople, manómetro, filtro y daño estructural. La foto se manda embebida: antes se mandaba una URL interna de la planta que la nube no podía abrir (#48). |
+
+**Verificación**: 409 tests (antes 374); `evaluacion/verificar_entrega2.py` en vivo **32/32 OK**
+(apagado de golpe de agente y Postgres sin perder ni duplicar órdenes, transiciones del
+planificador/supervisor/inspector, cierre por MQTT, habilita de USD 960 y cola de fotos sin
+enlace). Corrector oficial (`auditoria-e2-completa`, 5 escenarios): **88.0/100, sin
+eliminatorias** (antes 87.5).
+
+**Lo que sigue abajo y por qué**:
+- **F3 0%**: en `sin-luz` la única falla (F07 en F-201B) no da ninguna señal antes del corte (las
+  lecturas del filtro B llegan después). No se fabrica una orden para esto.
+- **G1 sin datos**: el simulador solo manda cierres de órdenes `Aprobada`, y la orden inmediata es
+  siempre una inspección (no estándar → queda Pendiente). Ver el plan de G1 en `PLAN.md`.
+- **Visión sin probar en vivo**: falta la `NVIDIA_API_KEY`. Está implementada y testeada con un
+  cliente falso.

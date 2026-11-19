@@ -6,6 +6,8 @@ Simplificación de esta etapa: el estado del diálogo vive en memoria (se pierde
 reinicia). Persistirlo en Postgres es parte de 5.7 (memoria de conversación).
 """
 
+import hashlib
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -26,6 +28,16 @@ from sistema.reloj import reloj
 PALABRAS_CONFIRMACION = ("si", "sí", "dale", "confirmo", "correcto", "listo", "ok", "esta bien", "está bien")
 
 MAX_INTENTOS_DESAMBIGUACION = 3
+
+# Detección de loops (Anexo 3.5): freno GENÉRICO que se suma a los topes puntuales de cada rama
+# (presupuesto de pasos, intentos de desambiguación). Si la misma pregunta exacta (texto + opciones
+# + filas) se va a mandar por cuarta vez (los topes propios permiten hasta 3), o el diálogo pasa de MAX_TURNOS_DIALOGO mensajes, el
+# diálogo no está avanzando: se acepta el parte como está, marcado para revisión manual, en vez de
+# seguir preguntando. Cubre cualquier rama nueva que se olvide de su propio freno (BUGS.md #13/#17
+# fueron exactamente eso).
+MAX_REPETICIONES_PREGUNTA = 3
+MAX_TURNOS_DIALOGO = 12
+NOTA_LOOP = "diálogo cortado por detección de loop (la misma pregunta se repetía): revisar a mano"
 
 
 def _es_confirmacion(texto: str) -> bool:
@@ -53,6 +65,7 @@ class EstadoDialogo:
     fila_en_pregunta: int | None = None
     consumo: ConsumoTokens = field(default_factory=ConsumoTokens)
     intentos_desambiguacion: dict[int, int] = field(default_factory=dict)
+    firmas_preguntas: list[str] = field(default_factory=list)
 
 
 def _presupuesto_disponible(estado: "EstadoDialogo") -> bool:
@@ -105,6 +118,35 @@ def construir_mensaje(estado: EstadoDialogo) -> MensajeTablet:
     )
     estado.mensaje_id_pendiente = mensaje.id
     return mensaje
+
+
+def firma_pregunta(mensaje: MensajeTablet) -> str:
+    """Lo que ve el operador, sin id ni hora: dos mensajes con la misma firma son la misma pregunta."""
+    pantalla = mensaje.pantalla.model_dump(mode="json") if mensaje.pantalla else None
+    crudo = json.dumps({"texto": mensaje.texto, "pantalla": pantalla}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha1(crudo.encode("utf-8")).hexdigest()
+
+
+def detectar_loop(estado: EstadoDialogo, mensaje: MensajeTablet) -> bool:
+    """Registra la pregunta que se va a mandar. Si es un loop, cierra el diálogo (parte
+    Confirmado con nota de revisión manual) y devuelve True: el caller NO debe mandar el mensaje."""
+    firma = firma_pregunta(mensaje)
+    repetida = estado.firmas_preguntas.count(firma) >= MAX_REPETICIONES_PREGUNTA
+    demasiados_turnos = len(estado.firmas_preguntas) >= MAX_TURNOS_DIALOGO
+    if not (repetida or demasiados_turnos):
+        estado.firmas_preguntas.append(firma)
+        return False
+    for f in estado.parte.filas:
+        if NOTA_LOOP not in (f.observacion or ""):
+            f.observacion = f"{f.observacion} / {NOTA_LOOP}" if f.observacion else NOTA_LOOP
+        f.requiere_confirmacion = False
+        f.motivo_confirmacion = None
+        if f.tag is None:
+            f.tag = f.candidatos[0] if f.candidatos else f.tag_dicho
+            f.ambiguo = False
+            f.candidatos = []
+    estado.parte.estado = EstadoParte.confirmado
+    return True
 
 
 def _mismo_equipo(existente, nueva) -> bool:

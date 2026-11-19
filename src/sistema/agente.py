@@ -29,7 +29,7 @@ from sistema.persistencia import fotos as persistencia_fotos
 from sistema.persistencia import memoria
 from sistema.persistencia import ordenes as persistencia_ordenes
 from sistema.procesamiento.cierres import comparar_cierre_con_orden
-from sistema.procesamiento.dialogo import EstadoDialogo, construir_mensaje, procesar_respuesta
+from sistema.procesamiento.dialogo import EstadoDialogo, construir_mensaje, detectar_loop, procesar_respuesta
 from sistema.procesamiento.eventos import DetectorSensores, eventos_del_parte
 from sistema.procesamiento.interpretacion import configurar_parser
 from sistema.procesamiento.parser_notas import ParserPartes, catalogo_desde_planta
@@ -212,6 +212,10 @@ def _avanzar_dialogo(client: mqtt.Client, estado: EstadoDialogo) -> None:
                 _procesar_evento_escalado_con_corte(client, evento)
         return
     mensaje = construir_mensaje(estado)
+    if detectar_loop(estado, mensaje):
+        log.warning("parte %s: loop detectado en el diálogo, se cierra para revisión manual", estado.parte.id)
+        _avanzar_dialogo(client, estado)  # ya quedó Confirmado: publica sus eventos y termina
+        return
     dialogos_pendientes[mensaje.id] = estado
     client.publish(Topicos.TABLET, mensaje.model_dump_json())
     log.info("sistema/tablet -> %s: %s", mensaje.id, mensaje.texto)
@@ -323,6 +327,17 @@ def _procesar_cierre(client: mqtt.Client, nota_cierre: NotaCierre) -> None:
         if orden is None:
             log.warning("cierre %s: no se encontró la orden %s", nota_cierre.id, nota_cierre.orden_id)
             return
+        if orden.estado == EstadoOrden.ejecutada:
+            log.info("cierre %s: la orden %s ya estaba Ejecutada (cierre repetido)", nota_cierre.id, orden.id)
+            return
+        if orden.estado != EstadoOrden.aprobada:
+            # Solo se ejecuta lo que se aprobó: un cierre sobre una orden Pendiente, Rechazada o ya
+            # cerrada/certificada es una inconsistencia para revisar a mano, no un cambio de estado.
+            log.warning(
+                "cierre %s: la orden %s está %s (no Aprobada); no se pasa a Ejecutada",
+                nota_cierre.id, orden.id, orden.estado.value,
+            )
+            return
 
         diferencias: list[str] = []
         try:
@@ -341,6 +356,10 @@ def _procesar_cierre(client: mqtt.Client, nota_cierre: NotaCierre) -> None:
             update={"estado": EstadoOrden.ejecutada, "motivo": "; ".join(diferencias) or None}
         )
         persistencia_ordenes.guardar(conn, ejecutada, pendiente_publicar=True)
+        log.info(
+            "orden %s -> Ejecutada (cierre %s) [correlacion=%s]%s", orden.id, nota_cierre.id,
+            persistencia_ordenes.correlacion_id(orden), f", diferencias: {diferencias}" if diferencias else "",
+        )
     finally:
         conn.close()
 
@@ -365,11 +384,6 @@ def _procesar_cierre_con_corte(client: mqtt.Client, nota_cierre: NotaCierre) -> 
             encolar_o_analizar(f"{nota_cierre.id}-FOTO-{i}", foto_url, orden_id=nota_cierre.orden_id)
         except Exception:
             log.exception("cierre %s: falló encolar/analizar la foto %d", nota_cierre.id, i)
-
-    log.info(
-        "orden %s -> Ejecutada (cierre %s)%s", nota_cierre.orden_id, nota_cierre.id,
-        f", diferencias: {diferencias}" if diferencias else "",
-    )
 
 
 # Serializa "buscar una orden abierta equivalente + guardar" (E3, sin duplicados): dos escalados
@@ -404,7 +418,8 @@ def _orden_inmediata_best_effort(evento: EventoSistema) -> None:
                 persistencia_ordenes.guardar(conn, orden, pendiente_publicar=True)
             finally:
                 conn.close()
-        log.info("orden %s (%s) persistida, pendiente de publicar", orden.id, orden.estado.value)
+        log.info("orden %s (%s) persistida, pendiente de publicar [correlacion=%s]",
+                 orden.id, orden.estado.value, persistencia_ordenes.correlacion_id(orden))
     except Exception:
         log.exception("orden %s: no se pudo persistir en Postgres", orden.id)
 

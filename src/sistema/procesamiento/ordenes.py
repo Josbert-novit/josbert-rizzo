@@ -92,6 +92,9 @@ def orden_inmediata(
         reduce_inyeccion=False, ejecutor=tarea.get("ejecutor", "propio"), repuestos=[],
     )
     reserva = hay_reserva_disponible(borrador.equipo, http) if detiene else True
+    # Anexo: `reduce_inyeccion` según la disponibilidad REAL de la reserva en este momento — si la
+    # tarea detiene el equipo y no hay otro del grupo parado para tomar su lugar, se inyecta menos.
+    borrador = borrador.model_copy(update={"reduce_inyeccion": detiene and not reserva})
     motivos = evaluar_reglas(
         borrador, materiales, reserva, danio_estructural,
         costo_max_usd=costo_max_usd, almacen=almacen, siempre_pendiente=siempre_pendiente,
@@ -102,6 +105,28 @@ def orden_inmediata(
             "motivo": "inspección propuesta por el sistema; " + "; ".join(motivos),
         })
     return borrador.model_copy(update={"estado": EstadoOrden.aprobada})
+
+
+def detalle_repuestos(orden: OrdenSistema, almacen: str = "yacimiento") -> list[dict]:
+    """Anexo C: repuestos con disponibilidad (yacimiento o central) y costo unitario. El `Repuesto`
+    del contrato solo admite `codigo` y `cantidad` (`extra="forbid"`), así que este detalle no
+    viaja en `sistema/ordenes`: lo muestra la central (`GET /api/ordenes/{id}`) al planificador."""
+    detalle = []
+    for r in orden.repuestos:
+        info = materiales.repuesto(r.codigo) or {}
+        stock = info.get("stock", {})
+        if stock.get(almacen, 0) >= r.cantidad:
+            disponibilidad = almacen
+        elif stock.get("central", 0) >= r.cantidad:
+            disponibilidad = "central"
+        else:
+            disponibilidad = "sin stock"
+        costo = info.get("costo_usd")
+        detalle.append({
+            "codigo": r.codigo, "cantidad": r.cantidad, "disponibilidad": disponibilidad,
+            "costo_unitario_usd": costo, "costo_total_usd": costo * r.cantidad if costo is not None else None,
+        })
+    return detalle
 
 
 ESTADOS_CERRADOS = {EstadoOrden.rechazada, EstadoOrden.cerrada, EstadoOrden.certificada}
@@ -189,7 +214,9 @@ def procesar_evento_escalado(
 
     borrador = diagnostico.borrador
     reserva = hay_reserva_disponible(borrador.equipo, http) if borrador.detiene_equipo else True
-    orden_borrador = borrador.a_orden_sistema(evento, orden_id)
+    orden_borrador = borrador.a_orden_sistema(evento, orden_id).model_copy(
+        update={"reduce_inyeccion": borrador.detiene_equipo and not reserva}
+    )
     motivos_reglas = evaluar_reglas(
         orden_borrador, materiales, reserva, danio_estructural,
         costo_max_usd=costo_max_usd, almacen=almacen, siempre_pendiente=siempre_pendiente,
