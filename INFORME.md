@@ -124,6 +124,21 @@ vacío), así que sirve una foto de muestra: un rectángulo con el título escri
 dice correctamente que no ve daño en la "rotura"; con fotos reales debería marcarlo. El resto de
 los modelos nuevos (análisis, cierre) son locales — mismo costo USD 0 que en Entrega 1, mismo motivo (ver sección anterior).
 
+### Ficha y consumo por tarea (Entrega 2)
+
+| Tarea | Modelo y versión | Referencia | Hardware | Tokens por llamada | Costo |
+| --- | --- | --- | --- | --- | --- |
+| Análisis de orden | `qwen2.5:1.5b` (id `65ec06548149`, Q4_K_M), 1.5 B parámetros, Ollama 0.5.4 | ollama.com/library/qwen2.5 | Notebook i5-11300H, 4 núcleos, 32 GB RAM, sin GPU | Tope de 4096 de contexto + 450 de salida; contados con `ConsumoTokens` | USD 0 (local) |
+| Cierre | Parser determinístico; `qwen2.5:1.5b` solo de respaldo | — | Ídem | 0 en los cierres reconocidos por el parser (todos los de las corridas); el respaldo usa los mismos topes | USD 0 |
+| Fotos | `nvidia/nemotron-3.5-super-vl-120b-a12b` (NVIDIA NIM, API `v1`, razonamiento apagado) | build.nvidia.com/nvidia/nemotron-3.5-super-vl-120b-a12b | Nube de NVIDIA | ~800 de entrada (la foto) + ~50 de salida | USD 0 (free tier) |
+
+**Sobre la "lista cerrada" de modelos**: el Enunciado (§04) dice que se usan "solo los de la lista
+cerrada que publicamos", pero la lista no está en el Enunciado ni en los anexos, y ninguno de los
+tres documentos nombra modelos de embeddings. Se eligieron modelos locales chicos que entran en la
+PC de planta (4 núcleos, 8 GB, sin GPU), y para visión uno de NVIDIA como pide el Anexo 2.
+`nomic-embed-text` queda sujeto a confirmación del docente; si no estuviera en la lista, se cambia
+con la variable `RAG_MODELO_EMBEDDINGS` y se reindexa, sin tocar código.
+
 ## Qué se decidió sin LLM, y por qué (verificación final, Fase 15)
 
 Con un modelo de 1.5B en CPU, cada llamada cuesta segundos o minutos y puede salir mal. Por eso,

@@ -15,11 +15,27 @@ notas de voz del operador, detectar anomalías y asistir al planificador en la a
 
 ## Qué corre en la PC de planta vs. en la nube
 
-- **PC de planta** (red `planta-lan`, sin internet salvo por el enlace): el agente que escucha
-  MQTT y la transcripción de voz local (debe seguir funcionando con el enlace caído).
-- **Nube** (opcional, solo si el enlace está arriba): llamadas a modelos remotos para tareas que
-  no son críticas en tiempo real (p. ej. análisis más profundo, RAG). El detalle de qué modelo se
-  usa en cada tarea y por qué está en [INFORME.md](INFORME.md).
+| Dónde | Qué | Por qué |
+| --- | --- | --- |
+| **PC de planta** (`planta-lan`, label `academia.planta: pc`, sale solo por `enlace:3128`) | `agente` (MQTT, transcripción Whisper, detección, alerta S1-S4, diálogo con la tablet, reglas de aprobación, órdenes, cierres) y `ollama` (qwen2.5:1.5b para extracción/análisis/cierre, nomic-embed-text para el RAG) | Todo lo que puntúa en tiempo real o protege a las personas tiene que andar con el enlace caído (`fuga-sin-enlace`) |
+| **Red propia** (`backend`) | `postgres` (pgvector, diálogos, órdenes, cola de fotos) y `central` (interfaz HTTP del planificador, supervisor e inspector, puerto 8200) | Estado durable que sobrevive al corte de luz y una interfaz para las personas |
+| **Nube** (solo con el enlace arriba) | Visión NVIDIA NIM (`nvidia/nemotron-3.5-super-vl-120b-a12b`) para las fotos | No hay un modelo de visión que corra en CPU sin GPU. Sin enlace, la foto queda en cola y se analiza cuando vuelve; la alerta y la orden nunca esperan a la visión |
+
+El detalle de qué modelo se usa en cada tarea, versión, consumo y costo está en
+[INFORME.md](INFORME.md).
+
+## Política de memoria
+
+| Qué se recuerda | Dónde | Por cuánto tiempo |
+| --- | --- | --- |
+| Diálogo en curso con la tablet (parte en borrador, fila en pregunta, pasos y tokens consumidos, firmas de preguntas para detectar loops) | Postgres, `dialogos_pendientes` (`persistencia/memoria.py`) | Mientras el parte esté en `Borrador`; se borra cuando se publica el parte. Un diálogo que nunca se contesta queda en la tabla (limitación conocida, sin limpieza por tiempo) |
+| Órdenes y su historia de estados (con `correlacion_id`) | Postgres, `ordenes` (`persistencia/ordenes.py`) | Siempre: es el registro de mantenimiento |
+| Fotos pendientes de análisis | Postgres, `fotos_pendientes_analisis` (`persistencia/fotos.py`) | Hasta que se analizan con el enlace arriba |
+| Parte confirmado y transcripción | Disco, volumen `notas-media` (`parte.json`, `transcripcion.txt`) | Siempre, como auditoría |
+| Manuales para el RAG | Postgres + pgvector | Se reindexan al arrancar; solo las revisiones vigentes se citan |
+
+Lo que **no** se recuerda: límites, stock y estado de los equipos. Se leen siempre de la planta
+(`/api/planta`, historian, inventario) en el momento, para no decidir con un dato viejo.
 
 ## Cómo levantarlo
 
