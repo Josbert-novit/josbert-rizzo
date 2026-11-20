@@ -806,3 +806,17 @@ Nemotron, timeout de 60 s, y error claro si no hay contenido. Probado en vivo: ~
 **Por qué importa**: los tests con cliente falso no podían ver ninguno de los dos problemas. Un
 modelo de nube hay que probarlo contra la nube.
 
+### 52. Los servicios de planta sumaban 7 CPU, y las notas competían por la CPU con los embeddings
+
+**Dónde**: `docker-compose.yml`, `src/sistema/rag/indexar.py`, `src/sistema/llm/extraccion.py`.
+**Bug**: el contrato pide 4 CPU / 8 GB entre todos los servicios de la PC de planta, y el agente
+tenía 3 y Ollama 4. Además, en la corrida `vision-nemotron` (83.0): en contratista una nota cayó al
+LLM de respaldo, que con Ollama ocupado en los embeddings tardó minutos y frenó la fila (4 notas
+cortadas a 90 s); en fuga-sin-enlace Whisper tardó 14 s en vez de 5 por un lote de embeddings y la
+nota se contestó después del corte (E1 0%).
+**Arreglo**: agente 2.5 + Ollama 1.5 = 4 CPU (la memoria ya daba 2 + 6 = 8 GB). Embeddings de a 1
+fragmento, para que la pausa por nota urgente llegue en segundos. Tope de 25 s al LLM de respaldo
+de la extracción (antes 45 s): si no contesta, queda lo del parser. Corrida `cpu4`: 88.7, E1 100%.
+**Por qué importa**: con menos CPU, lo que decide si una nota se contesta a tiempo es que nada de
+fondo le gane a Whisper.
+

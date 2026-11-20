@@ -746,6 +746,8 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 19/11 | `g1-tarea-estandar` (tarea estándar por evidencia clara) | contratista 13:36 · tormenta-perfecta 13:43 · sin-luz 13:48 · fuga-sin-enlace 13:51 · ataque 13:55 | sí | 12:10 | 12:13 | 13:55 | 105 min | **87.4 ✅** (G1 100%, A2 tormenta 54%) |
 | 19/11 | `g1b-parser-cierre` (parser de cierre + prioridad de notas) | contratista 14:10 · tormenta-perfecta 14:17 · sin-luz 14:22 · fuga-sin-enlace 14:25 · ataque 14:29 | sí | 13:57 | 14:00 | 14:29 | 32 min | **84.7 ✅** (parser de cierre no reconoció la transcripción real; G1 50%) |
 | 19/11 | `g1c-parser-whisper` (parser de cierre robusto a Whisper) | contratista 14:44 · tormenta-perfecta 14:52 · sin-luz 14:57 · fuga-sin-enlace 15:00 · ataque 15:04 | sí | 14:32 | 14:35 | 15:04 | 32 min | **88.7 ✅** (G1 100%) |
+| 20/11 | `vision-nemotron` (visión en vivo con Nemotron VL) | 5 escenarios | sí | 09:21 | — | 10:01 | 40 min | **83.0 ✅** (sin eliminatorias; caída por CPU: en contratista una nota al LLM frenó la fila y 4 se cortaron a 90 s; en fuga-sin-enlace Whisper compitió con los embeddings y la nota 1 se contestó después del corte: E1 0%, E2 50%. La visión anduvo: foto analizada en 2 s) |
+| 20/11 | `cpu4` (agente 2.5 + ollama 1.5 = 4 CPU, lotes de embeddings de 1, LLM de respaldo 25 s) | 5 escenarios | sí | 10:04 | — | 10:33 | 29 min | **88.7 ✅** (sin eliminatorias; E1 100%, E2 100%, G1 100%, D1 100%. En fuga-sin-enlace la foto de B-101 quedó en cola durante el corte y se analizó con NVIDIA al volver el enlace) |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 

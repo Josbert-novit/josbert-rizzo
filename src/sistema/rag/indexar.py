@@ -26,7 +26,9 @@ log = logging.getLogger(__name__)
 # corrector real: un lote de 32 tardaba 15-85 s (más contra carga) y dejaba un análisis de orden
 # esperando su turno todo ese tiempo. Lotes chicos reparten mejor la cola sin cambiar el total
 # indexado, a costa de más pedidos HTTP (aceptable: esto corre en segundo plano, sin apuro).
-TAMANO_LOTE = 4
+# 20/11 (corrida `vision-nemotron`): con 4 CPU un lote de 4 tardaba ~11 s y una nota que llegaba
+# en el medio esperaba ese lote entero antes de transcribir. De a 1, la pausa llega en ~3 s.
+TAMANO_LOTE = 1
 
 # Trampa del corpus (5.2): los manuales traen secciones que no son de esta planta ni de este
 # modelo (límites de la TX-250/TX-500, límites de PIA-1/PIA-2, equipos de otras plantas). Se

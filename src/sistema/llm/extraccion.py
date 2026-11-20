@@ -26,7 +26,10 @@ No inventes datos que la nota no menciona. Si falta un dato, dejalo null. Una no
 variables (por ejemplo una nota en vivo sin nada para reportar) produce una lista de filas vacía."""
 
 
-TIMEOUT_EXTRACCION_S = 45.0
+# El LLM es el respaldo del parser: si no contesta rápido, se usa lo del parser. Con 45 s (y Ollama
+# ocupado) una sola nota frenaba la fila y las siguientes se cortaban a los 90 s (corrida
+# `vision-nemotron`, contratista: 4 notas sin borrador).
+TIMEOUT_EXTRACCION_S = 25.0
 
 
 class FilasExtraidas(BaseModel):

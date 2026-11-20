@@ -40,7 +40,9 @@ services:
       ollama: {condition: service_started}
     deploy:
       resources:
-        limits: {cpus: "3", memory: 2g}
+        # Entre agente y ollama: 4 CPU / 8 GB, el límite de la PC de planta (docs/contrato.md).
+        # El agente se lleva más CPU porque Whisper es lo que decide si una nota se contesta a tiempo.
+        limits: {cpus: "2.5", memory: 2g}
     restart: unless-stopped
 
   ollama:
@@ -64,7 +66,7 @@ services:
     networks: [planta-lan]
     deploy:
       resources:
-        limits: {cpus: "4", memory: 6g}
+        limits: {cpus: "1.5", memory: 6g}
     restart: unless-stopped
 
   central:

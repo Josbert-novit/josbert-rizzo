@@ -132,6 +132,12 @@ los modelos nuevos (análisis, cierre) son locales — mismo costo USD 0 que en 
 | Cierre | Parser determinístico; `qwen2.5:1.5b` solo de respaldo | — | Ídem | 0 en los cierres reconocidos por el parser (todos los de las corridas); el respaldo usa los mismos topes | USD 0 |
 | Fotos | `nvidia/nemotron-3.5-super-vl-120b-a12b` (NVIDIA NIM, API `v1`, razonamiento apagado) | build.nvidia.com/nvidia/nemotron-3.5-super-vl-120b-a12b | Nube de NVIDIA | ~800 de entrada (la foto) + ~50 de salida | USD 0 (free tier) |
 
+**Recursos de la PC de planta**: agente 2.5 CPU / 2 GB y Ollama 1.5 CPU / 6 GB, en total 4 CPU y
+8 GB como pide el contrato (`BUGS.md` #52). Corridas del 20/11 con la visión prendida:
+`vision-nemotron` (7 CPU) 83.0 y `cpu4` (4 CPU, embeddings de a 1, LLM de respaldo con tope de
+25 s) **88.7, sin eliminatorias**. En `fuga-sin-enlace` la foto de B-101 quedó en cola durante el
+corte (`pendientes_sincronizar: 1`) y se analizó con NVIDIA cuando volvió el enlace.
+
 **Sobre la "lista cerrada" de modelos**: el Enunciado (§04) dice que se usan "solo los de la lista
 cerrada que publicamos", pero la lista no está en el Enunciado ni en los anexos, y ninguno de los
 tres documentos nombra modelos de embeddings. Se eligieron modelos locales chicos que entran en la
