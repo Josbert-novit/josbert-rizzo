@@ -794,3 +794,15 @@ transcripciones reales. Corrida `g1c-parser-whisper`: G1 100%.
 **Por qué importa**: un parser se prueba contra lo que sale de Whisper, no contra el texto que se
 le dio al sintetizador de voz.
 
+### 51. El modelo de visión planeado ya no existe y el reemplazo devolvía la respuesta vacía
+
+**Dónde**: `src/sistema/llm/vision.py`, `src/sistema/config.py`.
+**Bug**: con la key cargada, `meta/llama-3.2-90b-vision-instruct` responde 410 Gone (NVIDIA lo dio
+de baja). El reemplazo, `nvidia/nemotron-3.5-super-vl-120b-a12b`, razona antes de contestar: con
+`max_tokens: 400` el razonamiento se come todo, `content` llega `None` y `_extraer_json` falla
+con un `AttributeError` que no dice nada.
+**Arreglo**: modelo por defecto Nemotron VL, `chat_template_kwargs.enable_thinking=false` solo para
+Nemotron, timeout de 60 s, y error claro si no hay contenido. Probado en vivo: ~2-3 s por foto.
+**Por qué importa**: los tests con cliente falso no podían ver ninguno de los dos problemas. Un
+modelo de nube hay que probarlo contra la nube.
+

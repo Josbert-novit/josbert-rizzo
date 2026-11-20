@@ -22,7 +22,7 @@ class Config:
     # visión multimodal — se usa la nube (requiere NVIDIA_API_KEY) y se encola cuando no hay
     # enlace (ver `llm/vision.py` y `persistencia/ordenes.py`).
     nvidia_api_key = os.getenv("NVIDIA_API_KEY") or ""
-    nvidia_modelo_vision = os.getenv("NVIDIA_MODELO_VISION") or "meta/llama-3.2-90b-vision-instruct"
+    nvidia_modelo_vision = os.getenv("NVIDIA_MODELO_VISION") or "nvidia/nemotron-3.5-super-vl-120b-a12b"
 
     # Corte (4.1): si procesar una nota (descarga + transcripción + extracción + resolución)
     # tarda más que esto, se corta y se avisa igual en la tablet — más vale una respuesta

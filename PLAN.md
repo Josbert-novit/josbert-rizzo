@@ -1159,6 +1159,9 @@ tocar la decisión de aprobación. Bugs #44 a #48 en `BUGS.md`. Tests: `tests/te
   turnos, cierra el parte para revisión manual. Nunca se adelanta a los topes que ya existían
   (3 intentos de desambiguación). Las firmas se persisten con el diálogo.
 - [x] A8 (P1) Visión por componente + foto embebida en vez de URL interna (#48).
+- [x] A8b (P3) Visión en vivo (20/11): `meta/llama-3.2-90b-vision-instruct` dado de baja (410).
+  Pasa a `nvidia/nemotron-3.5-super-vl-120b-a12b` con el razonamiento apagado (#51). 4 fotos del
+  simulador en 2-3,5 s cada una, también desde la red de la planta pasando por `enlace`.
 - [x] A9 (P3) `evaluacion/verificar_entrega2.py`: guion en vivo (persistencia, kill de agente +
   Postgres, transiciones HTTP, cierre por MQTT, certificación, cola de fotos sin enlace).
   **Resultado (19/11, 11:04-11:05): 32/32 chequeos OK.** Las órdenes sobreviven al kill de

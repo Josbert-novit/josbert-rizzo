@@ -100,15 +100,29 @@ cantidad de llamadas al LLM por nota en vez de agrandar el modelo.
 | --- | --- | --- | --- | --- |
 | Análisis de orden (`llm/analisis.py`, Fase 10) | **qwen2.5:1.5b** (mismo modelo y motivo que 1.3) | Alibaba / Ollama | Local | Desde la verificación final queda como **sugerencia** para el planificador, nunca publicada: la orden que sale es una inspección armada sin LLM (`BUGS.md` #33). En esta CPU una llamada tarda minutos, así que va acotada (`num_predict=450`, `num_ctx=4096`, listas con tope, timeout de 90 s; `BUGS.md` #30) y con menor prioridad que las notas. |
 | Extracción de cierre (`llm/cierre.py`, Fase 14.2) | **qwen2.5:1.5b** (idem) | Alibaba / Ollama | Local | Mismo motivo: comparar un cierre contra la orden no puede depender de la nube. |
-| Análisis de fotos (`llm/vision.py`, Fase 13) | NVIDIA NIM `meta/llama-3.2-90b-vision-instruct` | NVIDIA (`integrate.api.nvidia.com`, API compatible OpenAI) | **Nube** | No hay un modelo de visión local liviano equivalente a Whisper/qwen2.5/nomic-embed-text que corra razonable en esta CPU sin GPU. Es aceptable que sea de nube porque el anexo lo dice explícito: con el enlace caído, el análisis de fotos queda en cola (`persistencia/fotos.py`) y se reintenta solo cuando vuelve — nunca bloquea la alerta de seguridad ni el borrador de orden (que siguen 100% locales). |
+| Análisis de fotos (`llm/vision.py`, Fase 13) | NVIDIA NIM `nvidia/nemotron-3.5-super-vl-120b-a12b` (antes `meta/llama-3.2-90b-vision-instruct`, que NVIDIA dio de baja: responde 410) | NVIDIA (`integrate.api.nvidia.com`, API compatible OpenAI) | **Nube** | No hay un modelo de visión local liviano equivalente a Whisper/qwen2.5/nomic-embed-text que corra razonable en esta CPU sin GPU. Es aceptable que sea de nube porque el anexo lo dice explícito: con el enlace caído, el análisis de fotos queda en cola (`persistencia/fotos.py`) y se reintenta solo cuando vuelve — nunca bloquea la alerta de seguridad ni el borrador de orden (que siguen 100% locales). |
 
 ## Costo y estado de prueba en vivo
 
-El análisis de visión requiere una `NVIDIA_API_KEY` (free tier de `build.nvidia.com`) que todavía
-no se pidió/configuró — los tests (`tests/test_vision.py`) pasan con un cliente fake, sin llamar
-a NVIDIA de verdad; falta correr el escenario `fuga-sin-enlace` en vivo contra el modelo real
-(Fase 15) para medir costo y latencia reales. El resto de los modelos nuevos (análisis, cierre)
-son locales — mismo costo USD 0 que en Entrega 1, mismo motivo (ver sección anterior).
+Visión probada en vivo el 20/11 con una `NVIDIA_API_KEY` del free tier de `build.nvidia.com`.
+El modelo planeado, `meta/llama-3.2-90b-vision-instruct`, ya no existe en el catálogo (410 Gone).
+Se reemplazó por `nvidia/nemotron-3.5-super-vl-120b-a12b`, que figura en `/v1/models`. Ese modelo
+razona antes de contestar: con `max_tokens: 400` el razonamiento (~600 tokens) se comía todo y la
+respuesta llegaba vacía. Se le apaga el razonamiento (`enable_thinking: false`).
+
+| Foto del simulador | Tiempo | Resultado |
+| --- | ---: | --- |
+| `empaquetadura/01.jpg` | 2,4 s | componente empaquetadura, estado falla, hallazgo "goteo" |
+| `manometro_diferencial/01.jpg` | 2,1 s | componente manómetro, sin lectura legible |
+| `rotura_descarga/01.jpg` | 3,5 s | "imagen de muestra", sin daño estructural |
+| `trabajo_terminado/01.jpg` | 2,0 s | "imagen de muestra", estado normal |
+
+Cada llamada usa unos 800 tokens de entrada (la foto) y unos 50 de salida, dentro del free tier
+(USD 0). También se probó desde un contenedor en la red de la planta, pasando por el proxy
+`enlace`, igual que el agente. Limitación: el simulador no trae fotos reales (`datos/fotos` está
+vacío), así que sirve una foto de muestra: un rectángulo con el título escrito abajo. El modelo
+dice correctamente que no ve daño en la "rotura"; con fotos reales debería marcarlo. El resto de
+los modelos nuevos (análisis, cierre) son locales — mismo costo USD 0 que en Entrega 1, mismo motivo (ver sección anterior).
 
 ## Qué se decidió sin LLM, y por qué (verificación final, Fase 15)
 
@@ -171,8 +185,9 @@ eliminatorias** (antes 87.5).
 - **F3 0%**: en `sin-luz` la única falla (F07 en F-201B) no da ninguna señal antes del corte (las
   lecturas del filtro B llegan después). No se fabrica una orden para esto.
 - **G1**: resuelto después de la auditoría (ver abajo).
-- **Visión sin probar en vivo**: falta la `NVIDIA_API_KEY`. Está implementada y testeada con un
-  cliente falso.
+- **Visión**: probada en vivo el 20/11 con Nemotron VL (ver "Costo y estado de prueba en vivo").
+  Las fotos del simulador son de muestra, así que el daño estructural no se pudo ver en una foto
+  real.
 
 ## G1: tarea estándar cuando la evidencia es clara, y cierre sin LLM (19/11)
 

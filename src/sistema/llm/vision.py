@@ -81,26 +81,36 @@ class ClienteNvidiaNIM:
         self._modelo = modelo if modelo is not None else config.nvidia_modelo_vision
         self._base_url = base_url
 
+    def _cuerpo(self, url: str) -> dict:
+        cuerpo = {
+            "model": self._modelo,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": PROMPT},
+                    {"type": "image_url", "image_url": {"url": imagen_como_data_uri(url)}},
+                ],
+            }],
+            "temperature": 0,
+            "max_tokens": 400,
+        }
+        if "nemotron" in self._modelo:
+            # Nemotron VL razona antes de contestar: sin esto el razonamiento (~600 tokens) se come
+            # max_tokens y `content` llega vacío. Apagado responde en ~2 s con ~50 tokens.
+            cuerpo["chat_template_kwargs"] = {"enable_thinking": False}
+        return cuerpo
+
     def analizar(self, url: str) -> AnalisisFoto:
         respuesta = httpx.post(
             f"{self._base_url}/chat/completions",
             headers={"Authorization": f"Bearer {self._api_key}"},
-            json={
-                "model": self._modelo,
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": PROMPT},
-                        {"type": "image_url", "image_url": {"url": imagen_como_data_uri(url)}},
-                    ],
-                }],
-                "temperature": 0,
-                "max_tokens": 400,
-            },
-            timeout=30,
+            json=self._cuerpo(url),
+            timeout=60,
         )
         respuesta.raise_for_status()
-        contenido = respuesta.json()["choices"][0]["message"]["content"]
+        contenido = respuesta.json()["choices"][0]["message"].get("content")
+        if not contenido:
+            raise ValueError(f"el modelo de visión {self._modelo} no devolvió contenido")
         return AnalisisFoto.model_validate(_extraer_json(contenido))
 
 
