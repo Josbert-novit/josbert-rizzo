@@ -6,7 +6,7 @@ reconciliación en `agente.py` la reintenta cuando vuelve el enlace.
 
 import psycopg
 
-from sistema.config import config
+from sistema.persistencia import conexion
 
 DDL = """
 CREATE TABLE IF NOT EXISTS fotos_pendientes_analisis (
@@ -22,9 +22,8 @@ CREATE INDEX IF NOT EXISTS fotos_pendientes_sin_resolver_idx
 
 
 def conectar() -> psycopg.Connection:
-    conn = psycopg.connect(config.postgres_dsn, autocommit=True)
-    conn.execute(DDL)
-    return conn
+    # Lote 6 (B5/B6): con timeouts y el DDL una sola vez por proceso (ver `conexion.py`).
+    return conexion.conectar("fotos", DDL)
 
 
 def encolar(conn: psycopg.Connection, foto_id: str, url: str, orden_id: str | None = None) -> None:

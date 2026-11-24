@@ -17,6 +17,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "python-dotenv>=1.0",
     "faster-whisper>=1.0",
+    "numpy>=1.26",  # Lote 6 (A2): cache de embeddings del corpus (`rag/indexar.py`)
     "pyyaml>=6.0",
     "mcp>=1.2",
 ]

@@ -56,11 +56,11 @@ class ExtractorCierre:
 
     def _cargar_chat(self) -> ChatEstructurado:
         if self._chat is None:
-            from langchain_ollama import ChatOllama
+            from sistema.llm.ollama import chat_ollama
 
-            self._chat = ChatOllama(
-                model=config.llm_modelo_extraccion, base_url=config.ollama_url, temperature=0,
-            ).with_structured_output(CierreExtraido)
+            # Lote 6 (B5): antes sin timeout — un Ollama trabado bloqueaba el pool de órdenes para
+            # siempre y ningún cierre más llegaba a Ejecutada.
+            self._chat = chat_ollama(timeout_s=config.timeout_cierre_llm_s).with_structured_output(CierreExtraido)
         return self._chat
 
     def extraer(self, texto: str, consumo: ConsumoTokens | None = None) -> CierreExtraido:

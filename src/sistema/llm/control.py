@@ -12,38 +12,15 @@ USD, pero sí tiene sentido reportar cuántos tokens/pasos insume interpretar un
 """
 
 import threading
-import time
 from dataclasses import dataclass
 
 from langchain_core.callbacks import BaseCallbackHandler
 
 MAX_PASOS_LLM_POR_NOTA = 6  # 1 extracción inicial + hasta 5 correcciones del operador
 
-# Prioridad de Ollama para el análisis de órdenes (Entrega 2, bug #27): Ollama en esta CPU (sin
-# GPU) sirve un pedido a la vez, así que aunque notas y órdenes corran en pools de Python
-# distintos, siguen compitiendo por el mismo servidor. D1/D2/F3/G1 (30 puntos de la rúbrica) vienen
-# de que una orden termine de analizarse; una nota de voz individual pesa mucho menos — así que,
-# mientras haya un análisis de orden en curso (`agente.py::_procesar_evento_escalado`), una nota
-# cede el turno antes de mandar su propia llamada al LLM. Tope defensivo de esa espera: nunca
-# dejar una nota colgada para siempre si este evento quedara prendido por algún bug.
-#
-# **Revertido en la Fase 15 (hallazgo H8)**: medido contra el corrector real (corrida
-# lote1-contratista), ceder el turno hasta 60 s *por cada llamada* de una nota (y una nota hace
-# hasta 6) la llevaba por encima de su corte de 90 s: 13 de 19 notas cortadas mientras un único
-# análisis de orden estaba colgado. Además el supuesto "Ollama sirve un pedido a la vez" no se
-# cumplió: con `OLLAMA_NUM_PARALLEL` en automático atendió notas en paralelo con el análisis. Los
-# extractores (`extraccion.py`, `cierre.py`) ya no llaman a `ceder_turno_si_hay_orden_en_curso`;
-# el análisis ahora está acotado por sí mismo (`llm/analisis.py`: num_predict, timeout). Se
-# mantienen el `Event` (lo usa `agente.py`) y la función (cubierta por `tests/test_control.py`).
-analisis_orden_en_curso = threading.Event()
-ESPERA_MAXIMA_PRIORIDAD_ORDEN_S = 60.0
-
-
-def ceder_turno_si_hay_orden_en_curso() -> None:
-    esperado = 0.0
-    while analisis_orden_en_curso.is_set() and esperado < ESPERA_MAXIMA_PRIORIDAD_ORDEN_S:
-        time.sleep(0.5)
-        esperado += 0.5
+# (Lote 6, D3: se borró `ceder_turno_si_hay_orden_en_curso`, la cesión de turno de las notas al
+# análisis de órdenes del bug #27, revertida en la Fase 15 (H8) y sin uso desde entonces. La
+# prioridad ahora es al revés: una nota corta la sugerencia del LLM, ver `llm/ollama.py`.)
 
 
 class TrabajoUrgente:

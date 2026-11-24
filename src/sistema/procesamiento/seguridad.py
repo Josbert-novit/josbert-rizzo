@@ -20,7 +20,6 @@ import re
 import unicodedata
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 
 from planta_contrato import EventoSistema, MensajeTablet, NotaRecorrida, Pantalla, TipoEvento
 

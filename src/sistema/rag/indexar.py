@@ -10,11 +10,15 @@ Correr dentro del contenedor del agente (tiene red hacia `sim`, `ollama` y `post
     docker compose exec agente python -m sistema.rag.indexar
 """
 
+import argparse
+import hashlib
 import logging
 import re
 import time
+from pathlib import Path
 from typing import Callable
 
+from sistema.config import config
 from sistema.integraciones.planta_http import PlantaHTTP
 from sistema.rag.embeddings import Embeddings
 from sistema.rag.esquema import conectar, crear_esquema
@@ -35,6 +39,45 @@ TAMANO_LOTE = 1
 # detectan por el título de la sección, que es lo que las declara como tales, y se marcan
 # `aplica=false` para que no compitan en la búsqueda (igual que la Rev. C con `vigente`).
 _NO_APLICA = re.compile(r"otros modelos|otras plantas|\bPIA-[12]\b", re.IGNORECASE)
+
+
+# Lote 6 (A2): embeddings precalculados del corpus, versionados en el repo. Cada escenario del
+# corrector arranca con la base vacía (`down -v`) y antes había que volver a embeber ~700
+# fragmentos con el Ollama de CPU, compitiendo con las notas por varios minutos. La clave es un
+# hash del modelo + el texto exacto que se embebe: si el corpus de la planta cambia (otra semilla)
+# o se cambia de modelo, esos fragmentos no coinciden y se embeben como antes.
+CACHE_EMBEDDINGS = Path(__file__).resolve().parents[1] / "datos" / "embeddings_corpus.npz"
+
+
+def clave_cache(texto: str, modelo: str | None = None) -> str:
+    modelo = modelo or config.rag_modelo_embeddings
+    return hashlib.sha1(f"{modelo}|{texto}".encode("utf-8")).hexdigest()
+
+
+def cargar_cache(ruta: Path = CACHE_EMBEDDINGS) -> dict[str, list[float]]:
+    if not ruta.exists():
+        return {}
+    import numpy as np
+
+    datos = np.load(ruta)
+    return {str(k): v for k, v in zip(datos["claves"], datos["vectores"])}
+
+
+def exportar_cache(http: PlantaHTTP, embeddings: Embeddings, ruta: Path = CACHE_EMBEDDINGS, lote: int = 16) -> int:
+    """Embebe el corpus completo una vez (fuera de la corrida) y lo guarda en `ruta`."""
+    import numpy as np
+
+    fragmentos = http.fragmentos()
+    textos = sorted({f["texto"] for f in fragmentos})
+    claves, vectores = [], []
+    for inicio in range(0, len(textos), lote):
+        trozo = textos[inicio : inicio + lote]
+        vectores.extend(embeddings.embed_documentos(trozo))
+        claves.extend(clave_cache(t) for t in trozo)
+        log.info("cache de embeddings: %d/%d", len(claves), len(textos))
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(ruta, claves=np.array(claves), vectores=np.array(vectores, dtype=np.float32))
+    return len(claves)
 
 
 def _aplica_a_esta_planta(fragmento: dict) -> bool:
@@ -114,6 +157,18 @@ def indexar(
         pendientes = conn.execute(
             "SELECT id, texto FROM rag_fragmentos WHERE embedding IS NULL ORDER BY id"
         ).fetchall()
+        try:
+            cache = cargar_cache()
+        except Exception:
+            log.exception("no se pudo leer el cache de embeddings; se embebe todo")
+            cache = {}
+        if cache:
+            desde_cache = [(cache[k], fid) for fid, texto in pendientes if (k := clave_cache(texto)) in cache]
+            with conn.cursor() as cur:
+                cur.executemany("UPDATE rag_fragmentos SET embedding = %s WHERE id = %s", desde_cache)
+            ids_cache = {fid for _, fid in desde_cache}
+            pendientes = [(fid, texto) for fid, texto in pendientes if fid not in ids_cache]
+            log.info("embeddings desde el cache precalculado: %d", len(desde_cache))
         log.info("embeddings pendientes: %d", len(pendientes))
         total = 0
         for inicio in range(0, len(pendientes), TAMANO_LOTE):
@@ -135,6 +190,13 @@ def indexar(
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--exportar-cache", action="store_true",
+                    help=f"embeber el corpus y guardarlo en {CACHE_EMBEDDINGS} (no toca Postgres)")
+    args = ap.parse_args()
+    if args.exportar_cache:
+        log.info("listo: %d embeddings en %s", exportar_cache(PlantaHTTP(), Embeddings()), CACHE_EMBEDDINGS)
+        return
     total = indexar(PlantaHTTP(), Embeddings())
     log.info("listo: %d fragmentos indexados", total)
 

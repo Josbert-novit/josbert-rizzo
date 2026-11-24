@@ -79,6 +79,20 @@ def encolar_o_analizar(
     return analisis
 
 
+# Lote 6 (BUGS #65): antes cualquier error dejaba la foto pendiente para siempre, reintentándola cada
+# 5 s, y `pendientes_sincronizar` no volvía nunca a 0 (E2 pide que la cola quede vacía al volver
+# el enlace). Un 4xx (foto que no existe, key o modelo de visión inválidos) no se arregla
+# reintentando; un timeout o un 5xx sí, pero con tope.
+MAX_INTENTOS_FOTO = 5
+_intentos_fallidos: dict[str, int] = {}
+
+
+def _error_permanente(error: Exception) -> bool:
+    respuesta = getattr(error, "response", None)
+    codigo = getattr(respuesta, "status_code", None)
+    return codigo is not None and 400 <= codigo < 500 and codigo not in (408, 429)
+
+
 def reconciliar_fotos_pendientes(cliente: ClienteVision | None = None) -> int:
     """Reintenta las fotos encoladas (13.2). Se llama desde un hilo propio en `agente.py`, nunca
     desde el loop de red de paho-mqtt. Devuelve cuántas se resolvieron en esta vuelta."""
@@ -96,8 +110,19 @@ def reconciliar_fotos_pendientes(cliente: ClienteVision | None = None) -> int:
                 continue
             try:
                 analisis = analizar_foto(foto["url"], cliente)
-            except Exception:
-                log.exception("foto %s: falló el análisis de visión", foto["id"])
+            except Exception as error:
+                if _error_permanente(error):
+                    log.warning("foto %s: sin análisis, error permanente (%s)", foto["id"], error)
+                    persistencia_fotos.marcar_resuelta(conn_fotos, foto["id"])
+                    resueltas += 1
+                    continue
+                intentos = _intentos_fallidos[foto["id"]] = _intentos_fallidos.get(foto["id"], 0) + 1
+                if intentos >= MAX_INTENTOS_FOTO:
+                    log.warning("foto %s: sin análisis tras %d intentos (%s)", foto["id"], intentos, error)
+                    persistencia_fotos.marcar_resuelta(conn_fotos, foto["id"])
+                    resueltas += 1
+                    continue
+                log.exception("foto %s: falló el análisis de visión (intento %d)", foto["id"], intentos)
                 continue
             persistencia_fotos.marcar_resuelta(conn_fotos, foto["id"])
             resueltas += 1

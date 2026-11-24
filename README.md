@@ -232,7 +232,7 @@ agente ya está respondiendo (bug #25), y en **dos pasadas** (`BUGS.md` #28):
    o un cierre en curso (`llm/control.py::trabajo_urgente`): en esta CPU sin GPU tardan varios
    minutos y no pueden quitarle el Ollama a las notas.
 
-La búsqueda (`rag/buscar.py`) es **híbrida**: une el ranking por palabras (`ts_rank_cd`) con el
+La búsqueda (`rag/buscar.py`) es **híbrida**: une el ranking por palabras (`ts_rank`) con el
 semántico (distancia coseno en pgvector) por *Reciprocal Rank Fusion* (k=60). Si todavía no hay
 embeddings, o si falla el de la pregunta, responde igual con la mitad por palabras. Para reindexar a mano igual (por ejemplo, después de regenerar el
 corpus con otra semilla):
@@ -278,6 +278,49 @@ docker compose run --rm -v ../academia2026-tp/planta:/academia/planta:ro agente 
     python -m evaluacion.evaluar_retrieval --oficial
 ```
 
+Resultado (24/11, corpus completo de 701 fragmentos, 71 preguntas):
+
+| Buscador | hit@1 | hit@5 | recall@5 | mrr | distractor@5 |
+|---|---:|---:|---:|---:|---:|
+| Nuestra híbrida (full-text + pgvector, RRF) — la que usa el sistema | 0.437 | 0.746 | 0.624 | 0.574 | 0.014 |
+| Nuestra solo full-text (`ts_rank`) | **0.577** | 0.817 | **0.688** | **0.671** | **0.000** |
+| BM25 de la cátedra (línea de base) | 0.352 | **0.845** | 0.664 | 0.573 | 0.099 |
+
+- La mitad por palabras le gana a BM25 en hit@1, recall@5, mrr y distractores. Queda un poco abajo
+  en hit@5, sobre todo en `historial` (0.36 contra 0.82).
+- Pasar de `ts_rank_cd` a `ts_rank` (bug #66) subió la híbrida de 0.690 a 0.746 de hit@5.
+- La mitad semántica (`nomic-embed-text`, un modelo chico) **resta** en esta suite: la híbrida queda
+  por debajo del full-text solo. Se mantiene igual porque pgvector es obligatorio en el TP y aporta
+  en preguntas con sinónimos. No se ajustaron los pesos del RRF para no sobreajustar a las mismas 71
+  preguntas con que se evalúa.
+- Distractores: la Rev. C (no vigente) no aparece en ninguna búsqueda, por el filtro duro. El 0.014
+  que queda es una sección vigente del documento correcto pero equivocada.
+
+## Velocidad y fiabilidad (Lote 6)
+
+La PC de planta tiene 4 CPU sin GPU, y la corrección corre en una máquina que no controlamos. El
+sistema está armado para que una nota nunca espere a la CPU y para que una falla de broker,
+Postgres u Ollama no pierda ni cuelgue nada:
+
+| Qué | Cómo |
+| --- | --- |
+| Whisper | 2 hilos (no uno por núcleo del host: el cgroup lo frenaba), modelo precargado al arrancar. Elegido midiendo con `evaluacion/evaluar_whisper.py` |
+| Embeddings del corpus | precalculados en `src/sistema/datos/embeddings_corpus.npz`; al arrancar no se embebe nada que ya esté |
+| Ollama | modelos siempre cargados, un pedido a la vez; la sugerencia del LLM (no se publica) se corta cuando llega una nota |
+| Nota en cola | acuse en la tablet a los 8 s si todavía no tuvo respuesta; el corte de 90 s cuenta desde que la nota arranca |
+| Alerta de seguridad | audio → Whisper → alerta; las fotos se bajan después |
+| MQTT | QoS 1 en todo lo publicado, reconexión automática, notas repetidas ignoradas por id; nada de lo que pase con un mensaje corta el loop de red |
+| Órdenes | se marcan publicadas solo si el broker confirmó la recepción |
+| Postgres | timeouts de conexión y de consulta, tablas creadas una vez por proceso, reintentos al guardar órdenes y cierres |
+| Arranque y apagado | conecta y late enseguida (la preparación corre en paralelo), maneja SIGTERM (`init: true`) |
+| Red | `backend` es interna: el agente sale a internet solo por `enlace:3128`, como pide el contrato |
+
+Para ver dónde se fue el tiempo en una corrida del corrector:
+
+```bash
+python -m evaluacion.latencias <corrida>   # whisper, cola, primer mensaje, acuses y cortes por escenario
+```
+
 ## Cómo correr los tests
 
 ```bash
@@ -293,6 +336,8 @@ Las corridas reales de `corregir.py` contra este repo están en [correccion/](co
 Entrega 2, verificación final (Fase 15, ver `PLAN.md` y `BUGS.md` #24–#43), corridas en
 `academia2026-tp/correccion/corridas/`: de **33.7** (`entrega2-completa-v6`) a **87.5 / 100 ·
 APRUEBA** (`lote5c-completa`, 5 escenarios, sin eliminatorias, 0 notas cortadas a los 90 s).
+Lote 6 (velocidad y fiabilidad, `BUGS.md` #53–#65): **89.7 / 100 · APRUEBA** (`lote6b`, los 7
+escenarios de la rúbrica, sin eliminatorias).
 
 ## Estructura
 

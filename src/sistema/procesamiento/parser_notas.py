@@ -33,10 +33,23 @@ _NUMERO_SIGUE = r"(?=\s*(?:\d|uno\b|dos\b|tres\b|cuatro\b|cinco\b|seis\b|siete\b
 _MANIAS_WHISPER: list[tuple[re.Pattern, str]] = [
     # "el rodamiento medió 62 grados", "el filtro A medio 1,3": "me dio" pegado. No toca "la del
     # medio" (no lo sigue un número).
-    (re.compile(r"\bmedi[oó]" + _NUMERO_SIGUE, re.IGNORECASE), "me dio"),
+    # Lote 6: tampoco "la del medio 115 kilos" (B-102 seguido de la lectura, sin "me dio").
+    (re.compile(r"(?<!\bdel )\bmedi[oó]" + _NUMERO_SIGUE, re.IGNORECASE), "me dio"),
     # "me dio 1-1 de diferencial" = 1.1
     (re.compile(r"(\d)-(\d)"), r"\1.\2"),
     (re.compile(r"golpe teo", re.IGNORECASE), "golpeteo"),
+    # Lote 6 (C1): "colqueteo metálico", "golpecheo metálico" (corridas vision-nemotron/cpu4).
+    # "metálico" sale bien siempre: se ancla ahí para no tocar otras palabras en -teo.
+    (re.compile(r"\b(?!golpeteo\b)\w+(?:teo|cheo)(?=\s+met[aá]lic)", re.IGNORECASE), "golpeteo"),
+    # Lote 6 (C4): "el filtro Bmedio 10", "filtro BME10", "filtro B-Mario 10" = "filtro B me dio".
+    # Solo si sigue un número (la lectura), para no tocar "el filtro B" a secas.
+    (re.compile(r"\bfiltro ?([AB])[- ]?(?:medi[oó]|mario|me)\s*(?=\d)", re.IGNORECASE), r"filtro \1 me dio "),
+    # Lote 6 (C4): "El A1 está disparada", "En A1, el rodamiento..." = "la uno": en las corridas
+    # guardadas fue "la uno" las 17 veces (iba al LLM, que se cortaba a los 25 s y la nota quedaba
+    # sin borrador). No toca un decimal ("el A 1,3").
+    (re.compile(r"\b(?:el|en) A ?([123])\b(?![.,]\d)", re.IGNORECASE), r"la \1"),
+    # Lote 6 (C4): "Está del fondo está parada" = "La del fondo" (al principio de una oración).
+    (re.compile(r"(^|[.,;]\s*)est[aá] del fondo\b", re.IGNORECASE), r"\1la del fondo"),
     (re.compile(r"\bembarquetadura|\bpaqueta ?dura", re.IGNORECASE), "empaquetadura"),
     # Lote 5b (lote5-completa): "al primario me dio 13" (por "el primario") dejaba el diferencial
     # pegado a la bomba anterior; "con una pistola" quedaba como texto sin entender.

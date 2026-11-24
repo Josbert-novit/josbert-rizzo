@@ -28,7 +28,10 @@ _PATRONES: list[tuple[str, str]] = [
     (r"disparad|no arranca", "equipo disparado"),
     (r"\bvisor\b|casi no tiene aceite|aceite (esta )?bajo", "nivel de aceite bajo"),
     (r"\bcorreas?\b|\bchill(a|an|ando)\b", "correas en mal estado"),
-    (r"golpe ?teo", "golpeteo metálico"),
+    # Lote 6 (C1): Whisper deforma "golpeteo" ("colqueteo", "golpecheo", "golpe de metálico",
+    # "volteo metálico", "golpe telemetálico") pero "metálico" sale bien, y en la verdad de campo de
+    # todas las corridas guardadas "metálico" aparece solo en "golpeteo metálico" (20 de 20).
+    (r"golpe ?teo|metalic", "golpeteo metálico"),
     (r"\bpiedras?\b|cavit", "ruido de cavitación"),
     (r"\bruido\b", "ruido anormal"),
     # El operador solo le saca foto al manómetro del filtro con el diferencial alto (>= 1.5).

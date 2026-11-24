@@ -4,7 +4,7 @@ transcripción (H11) y salida de los callejones sin salida del diálogo (H13).""
 from datetime import datetime, timezone
 
 import pytest
-from planta_contrato import EstadoOrden, EventoSistema, OrdenSistema, TipoEvento
+from planta_contrato import EstadoOrden, EventoSistema, TipoEvento
 
 from sistema.dominio.parte import FilaParteInterna, Parte
 from sistema.procesamiento.dialogo import _siguiente_fila_pendiente

@@ -29,7 +29,7 @@ variables (por ejemplo una nota en vivo sin nada para reportar) produce una list
 # El LLM es el respaldo del parser: si no contesta rápido, se usa lo del parser. Con 45 s (y Ollama
 # ocupado) una sola nota frenaba la fila y las siguientes se cortaban a los 90 s (corrida
 # `vision-nemotron`, contratista: 4 notas sin borrador).
-TIMEOUT_EXTRACCION_S = 25.0
+TIMEOUT_EXTRACCION_S = config.timeout_extraccion_s
 
 
 class FilasExtraidas(BaseModel):
@@ -49,16 +49,11 @@ class Extractor:
 
     def _cargar_chat(self) -> ChatEstructurado:
         if self._chat is None:
-            from langchain_ollama import ChatOllama
+            from sistema.llm.ollama import chat_ollama
 
-            self._chat = ChatOllama(
-                model=config.llm_modelo_extraccion,
-                base_url=config.ollama_url,
-                temperature=0,
-                # Lote 5b: el LLM es el respaldo del parser; si tarda más que esto, se usa lo que
-                # entendió el parser en vez de trabar la cola de notas (corte a los 90 s).
-                client_kwargs={"timeout": TIMEOUT_EXTRACCION_S},
-            ).with_structured_output(FilasExtraidas)
+            # Lote 5b: el LLM es el respaldo del parser; si tarda más que esto, se usa lo que
+            # entendió el parser en vez de trabar la cola de notas (corte a los 90 s).
+            self._chat = chat_ollama(timeout_s=TIMEOUT_EXTRACCION_S).with_structured_output(FilasExtraidas)
         return self._chat
 
     def extraer(self, texto: str, consumo: ConsumoTokens | None = None) -> FilasExtraidas:

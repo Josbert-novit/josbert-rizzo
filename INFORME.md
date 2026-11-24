@@ -234,3 +234,39 @@ I-VAL, nunca se aprobaba nada y la planta nunca mandaba un cierre (G1 sin datos)
 
 Costo: sigue en USD 0. El parser no usa modelos y el LLM local solo actúa de respaldo.
 
+
+## Velocidad y fiabilidad (Lote 6, 20/11)
+
+La corrida `vision-nemotron` dio 83.0 sin ningún bug nuevo: con la máquina cargada, Whisper tardó
+13.1 s por nota de mediana (4.7 s en la mejor corrida) y 13 notas pasaron los 90 s. El problema no
+eran los modelos sino cómo usaban la CPU. Cambios (detalle en `BUGS.md` #53–#64):
+
+- **Whisper**: 2 hilos fijos en vez de uno por núcleo del host (el cgroup de 2.5 CPU lo frenaba) y
+  precarga al arrancar. Elegido con `evaluacion/evaluar_whisper.py`: 90 audios armados por el
+  simulador con su ruido de planta, transcritos en la imagen del agente con `--cpus 2.5`.
+
+  | Configuración | Mediana | p90 | Notas perfectas | Al LLM |
+  | --- | ---: | ---: | ---: | ---: |
+  | antes (beam 5, hilos automáticos) | 4.1 s | 5.9 s | 45 | 21 |
+  | **2 hilos, beam 5 (elegida)** | **3.3 s** | **4.6 s** | **45** | **21** |
+  | 2 hilos, beam 2 + VAD | 2.9 s | 3.5 s | 46 | 22 |
+  | 2 hilos, beam 5 + VAD | 3.8 s | 6.3 s | 44 | 23 |
+
+  Se eligió la que no cambia ninguna transcripción; el modelo sigue siendo `small` int8.
+- **Embeddings** (`nomic-embed-text`): precalculados una vez y versionados (620 textos, 1.7 MB,
+  idénticos a los que da Ollama). En vivo ya no se embebe el corpus: 0 llamadas de embeddings por
+  escenario salvo las consultas.
+- **qwen2.5:1.5b**: modelos siempre cargados (`keep_alive=-1`), un pedido a la vez, 2 hilos; la
+  sugerencia del análisis (que no se publica) se corta cuando llega una nota y se reintenta después.
+- Tokens y costo: sin cambios (USD 0, todo local salvo la visión).
+
+| Medida (todas las notas de la corrida) | vision-nemotron | g1c | lote6-velocidad |
+| --- | ---: | ---: | ---: |
+| Whisper mediana / p90 | 13.1 / 40 s | 4.7 / 10 s | **3.8 / 5.4 s** |
+| Notas que esperaron >30 s en la cola | 15 | 2 | **0** |
+| Notas de más de 90 s | 13 de 49 | 0 de 51 | **0 de 82** |
+| Primera respuesta en la tablet, p90 | — | — | **17.3 s** |
+
+Con los dos bugs que encontró esa corrida arreglados (`BUGS.md` #63, #64), `lote6b` dio **89.7 /
+100, APRUEBA, sin eliminatorias**, con los 7 escenarios de la rúbrica: Whisper 3.0 s de mediana y
+4.4 s de p90, primera respuesta en la tablet en 7.4 s (p90), 0 notas de más de 90 s.

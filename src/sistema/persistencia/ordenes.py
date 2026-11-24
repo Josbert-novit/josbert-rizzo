@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 import psycopg
 from planta_contrato import OrdenSistema
 
-from sistema.config import config
+from sistema.persistencia import conexion
 
 DDL = """
 CREATE TABLE IF NOT EXISTS ordenes (
@@ -50,9 +50,8 @@ def correlacion_id(orden: OrdenSistema) -> str:
 
 
 def conectar() -> psycopg.Connection:
-    conn = psycopg.connect(config.postgres_dsn, autocommit=True)
-    conn.execute(DDL)
-    return conn
+    # Lote 6 (B5/B6): con timeouts y el DDL una sola vez por proceso (ver `conexion.py`).
+    return conexion.conectar("ordenes", DDL)
 
 
 def guardar(conn: psycopg.Connection, orden: OrdenSistema, pendiente_publicar: bool = True) -> None:
@@ -81,8 +80,18 @@ def cargar_todas(conn: psycopg.Connection) -> list[OrdenSistema]:
     return [OrdenSistema.model_validate(f[0]) for f in filas]
 
 
-def marcar_publicada(conn: psycopg.Connection, orden_id: str) -> None:
-    conn.execute("UPDATE ordenes SET pendiente_publicar = false WHERE id = %s", (orden_id,))
+def marcar_publicada(conn: psycopg.Connection, orden_id: str, version: datetime | None = None) -> bool:
+    """Lote 6 (B2): con `version` (el `actualizado_en` de lo que se publicó), solo marca si la fila
+    no cambió en el medio — si `central` o un escalado que se suma la tocaron entre la lectura y la
+    publicación, queda pendiente y la próxima vuelta publica la versión nueva."""
+    if version is None:
+        cursor = conn.execute("UPDATE ordenes SET pendiente_publicar = false WHERE id = %s", (orden_id,))
+    else:
+        cursor = conn.execute(
+            "UPDATE ordenes SET pendiente_publicar = false WHERE id = %s AND actualizado_en = %s",
+            (orden_id, version),
+        )
+    return cursor.rowcount > 0
 
 
 def guardar_sugerencia(conn: psycopg.Connection, orden_id: str, sugerencia: OrdenSistema) -> None:
@@ -103,7 +112,11 @@ def cargar_sugerencia(conn: psycopg.Connection, orden_id: str) -> OrdenSistema |
 
 
 def pendientes_de_publicar(conn: psycopg.Connection) -> list[OrdenSistema]:
+    return [orden for orden, _version in pendientes_de_publicar_con_version(conn)]
+
+
+def pendientes_de_publicar_con_version(conn: psycopg.Connection) -> list[tuple[OrdenSistema, datetime]]:
     filas = conn.execute(
-        "SELECT orden FROM ordenes WHERE pendiente_publicar = true ORDER BY actualizado_en"
+        "SELECT orden, actualizado_en FROM ordenes WHERE pendiente_publicar = true ORDER BY actualizado_en"
     ).fetchall()
-    return [OrdenSistema.model_validate(f[0]) for f in filas]
+    return [(OrdenSistema.model_validate(f[0]), f[1]) for f in filas]

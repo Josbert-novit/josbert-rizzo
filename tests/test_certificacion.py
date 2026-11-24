@@ -1,7 +1,7 @@
 """Casos reales de `academia2026-tp/datos/documentos/contrato/cierres_ejemplo.json` (Fase 14.4):
 `monto_habilita_usd` sale siempre de la orden + la lista de precios, nunca de lo declarado."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
 from planta_contrato import EstadoOrden, OrdenSistema, Repuesto

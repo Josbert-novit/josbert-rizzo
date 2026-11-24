@@ -173,3 +173,44 @@ def test_sin_clave_de_vision_la_foto_no_queda_pendiente_para_siempre(monkeypatch
     monkeypatch.setattr(fotos_mod, "enlace_arriba", lambda: True)
     assert reconciliar_fotos_pendientes() == 1
     assert fotos.filas["FOTO-1"]["resuelta"] is True
+
+
+# --- Lote 6 (BUGS #65): una foto con error no queda pendiente para siempre --------------------
+
+import httpx  # noqa: E402
+
+
+class ClienteQueFalla:
+    def __init__(self, error: Exception):
+        self.error = error
+        self.llamadas = 0
+
+    def analizar(self, url):
+        self.llamadas += 1
+        raise self.error
+
+
+def _error_http(codigo: int) -> httpx.HTTPStatusError:
+    pedido = httpx.Request("GET", "http://sim:8100/data/no-existe.jpg")
+    return httpx.HTTPStatusError("x", request=pedido, response=httpx.Response(codigo, request=pedido))
+
+
+def test_foto_con_404_se_resuelve_sin_analisis(monkeypatch):
+    _, fotos = _patch_almacenes(monkeypatch)
+    monkeypatch.setattr(fotos_mod, "enlace_arriba", lambda: True)
+    fotos.filas["F-404"] = {"id": "F-404", "url": "http://sim:8100/data/no-existe.jpg", "orden_id": None, "resuelta": False}
+    assert reconciliar_fotos_pendientes(cliente=ClienteQueFalla(_error_http(404))) == 1
+    assert fotos.filas["F-404"]["resuelta"] is True
+
+
+def test_error_transitorio_se_reintenta_con_tope(monkeypatch):
+    _, fotos = _patch_almacenes(monkeypatch)
+    monkeypatch.setattr(fotos_mod, "enlace_arriba", lambda: True)
+    fotos_mod._intentos_fallidos.clear()
+    fotos.filas["F-503"] = {"id": "F-503", "url": "http://x/1.jpg", "orden_id": None, "resuelta": False}
+    cliente = ClienteQueFalla(_error_http(503))
+    for _ in range(fotos_mod.MAX_INTENTOS_FOTO - 1):
+        assert reconciliar_fotos_pendientes(cliente=cliente) == 0
+        assert fotos.filas["F-503"]["resuelta"] is False
+    assert reconciliar_fotos_pendientes(cliente=cliente) == 1
+    assert cliente.llamadas == fotos_mod.MAX_INTENTOS_FOTO

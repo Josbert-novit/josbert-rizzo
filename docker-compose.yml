@@ -29,8 +29,22 @@ services:
       # HTTP_PROXY/HTTPS_PROXY acá adentro y se cuelga bajando el modelo de Whisper sin avisar
       # ni dar error (ver BUGS.md). Con esto, huggingface_hub vuelve a bajar por HTTP común.
       HF_HUB_DISABLE_XET: "1"
+      # Lote 6 (A1/A7): hilos acordes a la CPU de cada contenedor. Por defecto Whisper y Ollama
+      # usan un hilo por núcleo del host (4) aunque el contenedor tenga 2.5 y 1.5 CPU, y el cgroup
+      # los frena a la fuerza (throttling) justo cuando la máquina está cargada.
+      WHISPER_HILOS: "2"
+      OLLAMA_HILOS: "2"
     labels:
       academia.planta: pc
+    # Lote 6 (B9): con un init de verdad como PID 1, `docker stop` (SIGTERM) le llega al agente,
+    # que cierra MQTT limpio; antes Python era PID 1, ignoraba la señal y lo mataban a los 10 s.
+    init: true
+    # Informativo (`docker ps` lo muestra unhealthy): el latido escribe este archivo en cada vuelta.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/tmp/agente-vivo')<60 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
     volumes:
       - notas-media:/data/notas
       - whisper-modelos:/root/.cache/huggingface
@@ -59,8 +73,20 @@ services:
       HTTP_PROXY: http://enlace:3128
       HTTPS_PROXY: http://enlace:3128
       NO_PROXY: broker,sim,localhost,postgres,agente,127.0.0.1
+      # Lote 6 (A4): los modelos quedan cargados (se vio una recarga de 6.6 s en medio de una
+      # nota) y se atiende un pedido a la vez: con 1.5 CPU, dos pedidos en paralelo solo se
+      # reparten la misma CPU y reservan 4 contextos de memoria. La sugerencia del LLM (baja
+      # prioridad) se corta cuando llega una nota (`llm/ollama.py`), así que no la hace esperar.
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "2"
     labels:
       academia.planta: pc
+    healthcheck:
+      test: ["CMD-SHELL", "OLLAMA_HOST=127.0.0.1:11434 ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
     volumes:
       - ollama-modelos:/root/.ollama
     networks: [planta-lan]
@@ -80,9 +106,12 @@ services:
     environment:
       POSTGRES_HOST: postgres
     ports: ["${CENTRAL_PUERTO:-8200}:8200"]
+    init: true
     volumes:
       - notas-media:/data/notas:ro
-    networks: [backend]
+    # `publica` solo para exponer el puerto 8200 a las personas (una red `internal` no publica
+    # puertos); con Postgres habla por `backend`.
+    networks: [backend, publica]
     depends_on:
       postgres: {condition: service_healthy}
     restart: unless-stopped
@@ -107,8 +136,13 @@ networks:
   # Red de la planta: ya existe, la crea academia2026-tp. No se recrea acá.
   planta-lan:
     external: true
-  # Red propia, para el agente, la central y postgres.
+  # Red propia, para el agente, la central y postgres. Lote 6 (B10): `internal`, sin salida a
+  # internet. Antes no lo era, y el agente (que corre en la PC de planta) tenía una salida directa
+  # que saltaba el enlace: el contrato dice que la planta sale solo por `enlace:3128`.
   backend:
+    internal: true
+  # Solo para publicar el puerto de la central.
+  publica:
 
 volumes:
   sistema-db:

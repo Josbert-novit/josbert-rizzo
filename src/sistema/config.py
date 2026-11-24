@@ -42,6 +42,39 @@ class Config:
     # (`evaluacion/evaluar_tarea_estandar.py`): 0 aprobaciones que el corrector considere indebidas.
     ordenes_tarea_estandar = os.getenv("ORDENES_TAREA_ESTANDAR", "1").lower() not in ("0", "false", "no")
 
+    # Lote 6 (A1): Whisper con hilos fijos. Con `cpu_threads=0` CTranslate2 toma todos los núcleos
+    # del host aunque el contenedor tenga 2.5 CPU, y el cgroup lo frena (throttling). Valores
+    # elegidos con `evaluacion/evaluar_whisper.py` (ver PLAN.md, Lote 6).
+    whisper_hilos = int(os.getenv("WHISPER_HILOS", "2"))
+    whisper_beam = int(os.getenv("WHISPER_BEAM", "5"))
+    whisper_vad = os.getenv("WHISPER_VAD", "0").lower() in ("1", "true", "si", "sí")
+
+    # Lote 6 (A4/B5): Ollama. `keep_alive=-1` deja los modelos cargados (en una corrida se vio una
+    # recarga de 6.6 s en medio de una nota) y todo pedido tiene timeout: uno colgado no puede
+    # trabar para siempre el pool que lo llamó.
+    ollama_keep_alive = os.getenv("OLLAMA_KEEP_ALIVE_CLIENTE", "-1")
+    ollama_hilos = int(os.getenv("OLLAMA_HILOS", "0")) or None
+    timeout_extraccion_s = float(os.getenv("TIMEOUT_EXTRACCION_S", "25"))
+    timeout_cierre_llm_s = float(os.getenv("TIMEOUT_CIERRE_LLM_S", "45"))
+    timeout_embeddings_s = float(os.getenv("TIMEOUT_EMBEDDINGS_S", "30"))
+
+    # Lote 6 (A6): si a los `acuse_nota_s` de llegar una nota todavía no salió nada a la tablet
+    # (cola ocupada, CPU lenta), se manda un acuse ("recibí tu nota") sin esperar respuesta: el
+    # operador nunca queda sin contestación (E1 cuenta cualquier mensaje durante un corte de enlace).
+    acuse_nota_s = float(os.getenv("ACUSE_NOTA_S", "8"))
+    # Lote 6 (B7): el agente se conecta y late enseguida; las notas que lleguen mientras termina de
+    # prepararse (parser, Whisper) esperan hasta esto antes de procesarse igual.
+    espera_preparacion_s = float(os.getenv("ESPERA_PREPARACION_S", "60"))
+    espera_cierre_s = float(os.getenv("ESPERA_CIERRE_S", "120"))
+    espera_maxima_sugerencia_s = float(os.getenv("ESPERA_MAXIMA_SUGERENCIA_S", "600"))
+    intervalo_latido_s = float(os.getenv("INTERVALO_LATIDO_S", "30"))
+    intervalo_sondeo_estado_s = float(os.getenv("INTERVALO_SONDEO_ESTADO_S", "2"))
+    intervalo_reconciliacion_s = float(os.getenv("INTERVALO_RECONCILIACION_S", "5"))
+
+    # Lote 6 (B5): Postgres nunca puede colgar un hilo: tope para conectar y para cada consulta.
+    postgres_connect_timeout_s = int(os.getenv("POSTGRES_CONNECT_TIMEOUT_S", "5"))
+    postgres_statement_timeout_ms = int(os.getenv("POSTGRES_STATEMENT_TIMEOUT_MS", "30000"))
+
     postgres_host = os.getenv("POSTGRES_HOST", "postgres")
     postgres_port = int(os.getenv("POSTGRES_PORT", "5432"))
     postgres_db = os.getenv("POSTGRES_DB", "sistema")

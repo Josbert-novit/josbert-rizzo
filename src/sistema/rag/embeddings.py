@@ -1,6 +1,5 @@
 from typing import Protocol
 
-from sistema.config import config
 
 
 class ModeloEmbeddings(Protocol):
@@ -17,9 +16,10 @@ class Embeddings:
 
     def _cargar(self) -> ModeloEmbeddings:
         if self._modelo is None:
-            from langchain_ollama import OllamaEmbeddings
+            # Lote 6 (B5): con timeout (antes un pedido colgado trababa la indexación y las sugerencias).
+            from sistema.llm.ollama import embeddings_ollama
 
-            self._modelo = OllamaEmbeddings(model=config.rag_modelo_embeddings, base_url=config.ollama_url)
+            self._modelo = embeddings_ollama()
         return self._modelo
 
     def embed_documentos(self, textos: list[str]) -> list[list[float]]:

@@ -10,7 +10,6 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from planta_contrato import MensajeTablet, Pantalla
 

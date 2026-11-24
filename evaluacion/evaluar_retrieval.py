@@ -22,7 +22,7 @@ import sys
 from dataclasses import dataclass, field
 
 from sistema.integraciones.planta_http import PlantaHTTP
-from sistema.rag.buscar import Fragmento, buscar
+from sistema.rag.buscar import buscar
 from sistema.rag.embeddings import Embeddings
 
 log = logging.getLogger(__name__)

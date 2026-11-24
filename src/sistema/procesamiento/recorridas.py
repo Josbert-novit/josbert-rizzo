@@ -1,4 +1,6 @@
 import logging
+import time
+import wave
 from pathlib import Path
 
 from planta_contrato import NotaRecorrida
@@ -32,23 +34,52 @@ def cargar_parte(nota_id: str) -> Parte | None:
     return Parte.model_validate_json(archivo.read_text(encoding="utf-8"))
 
 
-def descargar_y_transcribir(nota: NotaRecorrida, http: PlantaHTTP, transcriptor: Transcriptor) -> str:
-    """Descarga audio y fotos de la nota y transcribe el audio. Se separa de `armar_parte` para
-    que la detección de alerta de seguridad (2.5) corra sobre el texto apenas sale de Whisper,
-    sin esperar a la extracción con LLM ni a ninguna otra llamada de red."""
+def descargar_y_transcribir(
+    nota: NotaRecorrida, http: PlantaHTTP, transcriptor: Transcriptor, tiempos: dict | None = None
+) -> str:
+    """Descarga el audio de la nota y lo transcribe. Se separa de `armar_parte` para que la
+    detección de alerta de seguridad (2.5) corra sobre el texto apenas sale de Whisper, sin esperar
+    a la extracción con LLM ni a ninguna otra llamada de red.
+
+    Lote 6 (A5): las fotos ya no se bajan acá. Antes se bajaban todas (hasta 30 s cada una)
+    **antes** de devolver el texto, o sea antes de `detectar()`: una foto lenta podía sacar la
+    alerta de seguridad de los 30 s del criterio eliminatorio. Ahora van en `descargar_fotos`,
+    después de la alerta y en un hilo aparte."""
     carpeta = config.media_dir / nota.id
     carpeta.mkdir(parents=True, exist_ok=True)
 
     texto = ""
     if nota.audio_url:
+        inicio = time.perf_counter()
         audio_path = http.descargar(nota.audio_url, carpeta / "audio.wav")
+        descargado = time.perf_counter()
         texto = transcriptor.transcribir(audio_path)
+        if tiempos is not None:  # Lote 6 (D1): para la línea de latencia de la nota
+            tiempos["descarga"] = descargado - inicio
+            tiempos["whisper"] = time.perf_counter() - descargado
+            tiempos["audio"] = _duracion_wav(audio_path)
         (carpeta / "transcripcion.txt").write_text(texto, encoding="utf-8")
-
-    for i, foto_url in enumerate(nota.fotos):
-        http.descargar(foto_url, carpeta / f"foto_{i}.jpg")
-
     return texto
+
+
+def _duracion_wav(ruta: Path) -> float:
+    try:
+        with wave.open(str(ruta), "rb") as w:
+            return w.getnframes() / float(w.getframerate() or 1)
+    except Exception:
+        return 0.0
+
+
+def descargar_fotos(nota: NotaRecorrida, http: PlantaHTTP) -> None:
+    """Copia local de las fotos de la nota (registro del parte). Cada una es independiente: si
+    una falla, las demás se bajan igual."""
+    carpeta = config.media_dir / nota.id
+    carpeta.mkdir(parents=True, exist_ok=True)
+    for i, foto_url in enumerate(nota.fotos):
+        try:
+            http.descargar(foto_url, carpeta / f"foto_{i}.jpg")
+        except Exception:
+            log.exception("nota %s: no se pudo bajar la foto %d", nota.id, i)
 
 
 def armar_parte(
@@ -93,4 +124,5 @@ def recibir_nota(
     verificador_rango: VerificadorRango,
 ) -> Parte:
     texto = descargar_y_transcribir(nota, http, transcriptor)
+    descargar_fotos(nota, http)
     return armar_parte(nota, texto, extractor, resolver, verificador_rango)

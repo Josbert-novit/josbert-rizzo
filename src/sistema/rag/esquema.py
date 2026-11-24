@@ -9,7 +9,7 @@ corresponden a PIA-3) y `equipos`.
 import psycopg
 from pgvector.psycopg import register_vector
 
-from sistema.config import config
+from sistema.persistencia import conexion
 
 DIMENSION_EMBEDDING = 768  # nomic-embed-text
 
@@ -53,7 +53,9 @@ def conectar() -> psycopg.Connection:
     """La extensión `vector` tiene que existir en la base ANTES de registrar el adaptador de
     pgvector del lado de psycopg (si no, `register_vector` no encuentra el tipo en `pg_type` y
     falla) — por eso el orden acá no es arbitrario."""
-    conn = psycopg.connect(config.postgres_dsn, autocommit=True)
+    # Lote 6 (B5): con timeout de conexión; sin `statement_timeout` (la indexación hace escrituras
+    # largas a propósito).
+    conn = conexion.abrir(statement_timeout=False)
     conn.execute(DDL_EXTENSION)
     register_vector(conn)
     return conn

@@ -8,7 +8,7 @@ Por qué híbrida y no solo pgvector:
 - Los embeddings fallan con números, códigos e IDs exactos ("F-201B", "§6.1", "OT-25-0026"),
   justo lo que más abunda en manuales de límites; ahí gana la coincidencia exacta de palabras.
   En 5.3 medimos solo pgvector en hit@5 0.648 contra 0.85 del BM25 de la cátedra.
-- RRF combina **posiciones**, no puntajes (los de `ts_rank_cd` y coseno no son comparables):
+- RRF combina **posiciones**, no puntajes (los de `ts_rank` y coseno no son comparables):
   `RRF(d) = Σ 1/(k + posición)`, con k=60.
 
 Trampa de versiones (5.2): por default solo se buscan fragmentos `vigente=true`, en las dos
@@ -52,7 +52,13 @@ def consulta_full_text(pregunta: str) -> str | None:
     """Arma una consulta OR para `to_tsquery('spanish', ...)` a partir de la pregunta libre.
 
     OR y no AND (`plainto_tsquery`): una pregunta en lenguaje natural casi nunca tiene todas sus
-    palabras en el mismo fragmento; el ranking (`ts_rank_cd`) ya premia a los que tienen más.
+    palabras en el mismo fragmento; el ranking (`ts_rank`) ya premia a los que tienen más.
+
+    `ts_rank` y no `ts_rank_cd` (bug #66): con una consulta OR, la "densidad de cobertura" de
+    `ts_rank_cd` premia a las secciones largas de manual que juntan muchas palabras sueltas cerca,
+    y entierra a las órdenes cortas del historial. Medido con el evaluador oficial (71 preguntas):
+    solo full-text, hit@5 0.718 → 0.817, recall@5 0.552 → 0.688, mrr 0.494 → 0.671. Sin
+    normalizar por largo: las normalizaciones 1 y 2 de Postgres dieron peor en las dos funciones.
     Solo letras/dígitos, así un carácter especial de la pregunta nunca rompe la sintaxis de
     `to_tsquery`. Las stopwords las descarta el propio diccionario `spanish`."""
     palabras = [p.lower() for p in _PALABRA.findall(pregunta) if len(p) >= 2 or p.isdigit()]
@@ -92,7 +98,7 @@ def _ranking_lexico(conn, pregunta: str, condiciones: list[str], parametros: lis
         f"""
         SELECT id FROM rag_fragmentos, to_tsquery('spanish', %s) AS q
         WHERE {where}
-        ORDER BY ts_rank_cd(tsv, q) DESC, id
+        ORDER BY ts_rank(tsv, q) DESC, id
         LIMIT %s
         """,
         [consulta, *parametros, limite],

@@ -687,7 +687,9 @@ Los bloques van de más barato a más caro: si uno falla feo, no se gasta tiempo
   latido en `sistema/estado` con `pendientes_sincronizar`, `central` responde
   `GET /api/ordenes`, tablas nuevas (`ordenes`, `fotos_pendientes_analisis`) creadas en
   Postgres. Si algo de esto falla, no tiene sentido seguir: arreglar y rebuild.
-- [ ] **Bloque 3 — Pruebas en vivo agrupadas (un guion, una sola sesión)**
+- [x] **Bloque 3 — Pruebas en vivo agrupadas (un guion, una sola sesión)**
+  **Cubierto por `evaluacion/verificar_entrega2.py`** (A9 de la auditoría, 19/11, y de nuevo en el
+  Lote 6, 20/11): 32/32 chequeos, que incluyen los 6 casos de abajo.
   Disparar todos los casos seguidos y revisar logs/Postgres/MQTT **al final**, no uno por uno:
   1. orden que se auto-aprueba;
   2. orden `PendienteAprobacion` por costo, por stock (`TX-ROD-CIG`) y por contratista;
@@ -711,11 +713,18 @@ Los bloques van de más barato a más caro: si uno falla feo, no se gasta tiempo
   las eliminatorias `aprobacion_indebida`/`inyeccion_de_instrucciones` de cada `resultado.json`.
   Al final del bloque: arreglar todo en lote, rebuild, y re-correr **solo los escenarios que
   fallaron**. Una corrida completa con los 5 juntos solo al cierre, como confirmación.
-- [~] **Bloque 5 — Documentación (una vez, con los números finales)**
+- [x] **Bloque 5 — Documentación (una vez, con los números finales)**
   **Hecho**: README (flujo de órdenes, búsqueda híbrida, parser primero, nota final), INFORME
-  (decisiones sin LLM, tabla parser vs LLM), BUGS #28-#43. **Pendiente**: evaluación de retrieval
-  contra BM25 con el evaluador oficial (L1.6, requiere el stack arriba) y confirmar con el docente
-  que `nomic-embed-text` está en la lista cerrada de modelos.
+  (decisiones sin LLM, tabla parser vs LLM), BUGS #28-#43.
+  **Evaluación de retrieval contra BM25 (24/11, 08:50-09:10)**: corrida con el evaluador oficial
+  (`evaluar_retrieval.py --oficial`). Destapó el bug #66: `historial` daba hit@5 0.18 contra 0.82
+  de BM25, porque `ts_rank_cd` enterraba las órdenes cortas. Se cambió a `ts_rank`, se reconstruyó
+  la imagen y se volvió a correr. Híbrida: hit@5 0.690 → **0.746**, recall@5 0.563 → **0.624**,
+  mrr 0.552 → **0.574** (BM25: 0.845 / 0.664 / 0.573). Solo full-text: 0.817 / **0.688** /
+  **0.671**, distractor@5 **0** (BM25 0.099). Tabla en el README. No se tocaron los pesos del RRF
+  para no sobreajustar a la suite. 22 tests de búsqueda en verde.
+  **Sigue pendiente (lo hace el usuario)**: confirmar con el docente que `nomic-embed-text` está
+  en la lista cerrada de modelos.
   `README.md` (diagrama de workflow de 8.4, endpoints de `central` con `curl`, modelo de visión y
   por qué), `INFORME.md` (modelo de visión en la tabla, costo real si hubo llamadas de pago),
   `BUGS.md` (numeración desde #24, volcando la lista de hallazgos), y marcar acá los resultados
@@ -748,6 +757,8 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 19/11 | `g1c-parser-whisper` (parser de cierre robusto a Whisper) | contratista 14:44 · tormenta-perfecta 14:52 · sin-luz 14:57 · fuga-sin-enlace 15:00 · ataque 15:04 | sí | 14:32 | 14:35 | 15:04 | 32 min | **88.7 ✅** (G1 100%) |
 | 20/11 | `vision-nemotron` (visión en vivo con Nemotron VL) | 5 escenarios | sí | 09:21 | — | 10:01 | 40 min | **83.0 ✅** (sin eliminatorias; caída por CPU: en contratista una nota al LLM frenó la fila y 4 se cortaron a 90 s; en fuga-sin-enlace Whisper compitió con los embeddings y la nota 1 se contestó después del corte: E1 0%, E2 50%. La visión anduvo: foto analizada en 2 s) |
 | 20/11 | `cpu4` (agente 2.5 + ollama 1.5 = 4 CPU, lotes de embeddings de 1, LLM de respaldo 25 s) | 5 escenarios | sí | 10:04 | — | 10:33 | 29 min | **88.7 ✅** (sin eliminatorias; E1 100%, E2 100%, G1 100%, D1 100%. En fuga-sin-enlace la foto de B-101 quedó en cola durante el corte y se analizó con NVIDIA al volver el enlace) |
+| 20/11 | `lote6-velocidad` (Lote 6: Whisper 2 hilos, embeddings precalculados, sugerencias cancelables, acuse, QoS 1, red backend interna) | martes-tranquilo 14:28 · tormenta-perfecta 14:35 · fuga-sin-enlace 14:38 · sin-luz 14:43 · contratista 14:52 · ataque 14:56 · libre 15:05 | sí | 14:20 | 14:23 | 15:05 | 45 min | **88.6 ✅** (7 escenarios, no comparable 1 a 1 con las de 5; sin eliminatorias. 0 notas >90 s, Whisper 3.8 s mediana, 0 embeddings en vivo, 11 sugerencias cortadas por notas. G1 75%: bug #63, una orden Aprobada pisada por el mismo evento repetido) |
+| 20/11 | `lote6b` (arreglo #63 + "El A1" = la uno) | martes-tranquilo 15:14 · tormenta-perfecta 15:21 · fuga-sin-enlace 15:24 · sin-luz 15:29 · contratista 15:37 · ataque 15:41 · libre 15:49 | sí | 15:07 | 15:09 | 15:49 | 42 min | **89.7 ✅** (7 escenarios, sin eliminatorias; G1 100%, A2 70%, A3 82%, B1 97%. Whisper 3.0/4.4 s, primer mensaje p90 7.4 s, 0 notas >90 s; el #63 actuó 4 veces) |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 
@@ -1243,3 +1254,45 @@ aprobaba nada y el simulador nunca mandaba un cierre (G1 sin datos).
   "fueron 12 horas" (audio verificado a mano), y la comparación marcó "horas extra". Es una
   diferencia para revisión humana, no cambia el estado de la orden.
 
+
+### Lote 6 — velocidad y fiabilidad (20/11, alcance A+B+C+D confirmado por el usuario)
+
+Plan: `C:/Users/josbe/.claude/plans/has-un-analisis-de-gleaming-elephant.md`. Motivo: `vision-nemotron`
+(83.0) perdió 5.7 puntos solo por CPU (Whisper 13 s/nota de mediana contra 4.7 s en g1c, 13 notas
+de más de 90 s); `cpu4` (88.7) es la línea base. Objetivo: que el sistema degrade bien con CPU
+lenta y no pierda nada ante fallas de broker, Postgres u Ollama.
+
+- [x] A — velocidad (BUGS #53–#57):
+  - A1 Whisper con 2 hilos y precarga. Medido con `evaluacion/evaluar_whisper.py` (90 audios del
+    simulador con ruido de planta, imagen del agente con `--cpus 2.5`): mediana 4.1 → 3.3 s, p90
+    5.9 → 4.6 s, mismas 45 notas perfectas. Beam 2 + VAD descartado (cambia notas), VAD solo empeora.
+  - A2 cache de embeddings (620 textos, coseno 1.0 contra Ollama de a uno): 0 embeddings en vivo.
+  - A3 sugerencia del LLM cancelable por cualquier nota/respuesta/cierre (probado: corte en 1 ms).
+  - A4 `OLLAMA_KEEP_ALIVE=-1`, `OLLAMA_NUM_PARALLEL=1`, precalentado al arrancar.
+  - A5 fotos después de la alerta. A6 corte desde que arranca + acuse a los 8 s.
+  - A7 4 CPU (agente 2.5 + Ollama 1.5), Whisper y Ollama con 2 hilos.
+- [x] B — fiabilidad (BUGS #58–#61): `on_message` blindado y sensores en su pool; QoS 1 y orden
+  marcada solo con confirmación del broker y misma versión; reconexión, dedupe de notas (sin sesión
+  persistente: el broker no se reinicia entre escenarios); latido con try/except y último valor
+  conocido; timeouts en Ollama y Postgres; DDL una vez; reintentos de orden inmediata y cierre;
+  arranque sin demorar el latido; locks; `init: true`, SIGTERM, healthchecks; `backend` interna.
+- [x] C — extracción (BUGS #62): golpeteo por "metálico", filtro B deformado, "la del fondo", "la
+  del medio 115". `evaluar_parser`: 618 → 620 perfectas de 759. C2 sin arreglo legítimo (notas sin
+  números no pueden sumar A2/A3, ver `puntuar.py::borradores_de`).
+- [x] D — `evaluacion/latencias.py` + línea `latencia nota=...`; 23 tests de orquestación y cache;
+  código muerto de `control.py` borrado; tiempos sueltos a `config.py`. **468 passed**.
+- [x] Verificación en vivo: `lote6-velocidad` **88.6** (7 escenarios) destapó #63 (orden Aprobada
+  pisada por el mismo evento repetido, G1 75%) y #64 ("El A1" = la uno); arreglados → `lote6b`
+  **89.7 / 100, APRUEBA, sin eliminatorias** (la mejor hasta ahora, con los 7 escenarios de la
+  rúbrica). Objetivos de velocidad cumplidos: Whisper 3.0 s mediana / 4.4 s p90 (antes 13.1 / 40),
+  primer mensaje p90 7.4 s, 0 notas >90 s, 0 esperas >30 s en cola. 473 tests.
+- [x] Pruebas de falla a mano (stack de desarrollo, 20/11 ~16:00):
+  - `evaluacion/verificar_entrega2.py`: primero 31/32 — la foto con URL inexistente quedaba en cola
+    para siempre ahora que la visión tiene key (BUGS #65) → arreglado → **32/32** (incluye kill de
+    agente + Postgres: las órdenes vuelven con el mismo id y estado, sin duplicados).
+  - Broker pausado 15 s con una orden pendiente: sigue `pendiente_publicar=true` mientras tanto; al
+    volver se publica y se marca en 8 s (antes se marcaba publicada sin salir).
+  - Simulador caído cuando llega una nota: el agente no muere (0 reinicios), sigue latiendo y la
+    tablet recibe el acuse.
+  - `docker compose stop agente`: apagado limpio en 0.6 s (antes 10 s y SIGKILL).
+  - 475 tests.

@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 import psycopg
 
-from sistema.config import config
+from sistema.persistencia import conexion
 from sistema.dominio.parte import Parte
 from sistema.llm.control import ConsumoTokens
 from sistema.procesamiento.dialogo import EstadoDialogo
@@ -44,9 +44,8 @@ CREATE INDEX IF NOT EXISTS dialogos_pendientes_mensaje_id_idx ON dialogos_pendie
 
 
 def conectar() -> psycopg.Connection:
-    conn = psycopg.connect(config.postgres_dsn, autocommit=True)
-    conn.execute(DDL)
-    return conn
+    # Lote 6 (B5/B6): con timeouts y el DDL una sola vez por proceso (ver `conexion.py`).
+    return conexion.conectar("memoria", DDL)
 
 
 def _estado_a_json(estado: EstadoDialogo) -> dict:

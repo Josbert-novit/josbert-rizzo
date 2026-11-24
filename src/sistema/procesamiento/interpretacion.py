@@ -8,7 +8,6 @@ import re
 from datetime import datetime
 
 from sistema.dominio.parte import FilaParteInterna
-from sistema.integraciones.planta_http import PlantaHTTP
 from sistema.llm.control import ConsumoTokens
 from sistema.llm.extraccion import Extractor
 from sistema.procesamiento.rango_historico import VerificadorRango

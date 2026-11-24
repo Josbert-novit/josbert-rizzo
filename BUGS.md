@@ -820,3 +820,183 @@ de la extracción (antes 45 s): si no contesta, queda lo del parser. Corrida `cp
 **Por qué importa**: con menos CPU, lo que decide si una nota se contesta a tiempo es que nada de
 fondo le gane a Whisper.
 
+## Lote 6 — velocidad y fiabilidad (20/11)
+
+Origen: análisis de la corrida `vision-nemotron` (83.0), que perdió 5.7 puntos solo por CPU, y una
+auditoría de fiabilidad de `agente.py`. Plan y alcance en `PLAN.md`, sección "Lote 6".
+
+### 53. Whisper usaba todos los núcleos del host aunque el contenedor tuviera 2.5 CPU
+
+**Dónde**: `src/sistema/llm/transcripcion.py`, `src/sistema/config.py`, `docker-compose.yml`.
+**Bug**: `WhisperModel` se creaba con los defaults (`cpu_threads=0`): CTranslate2 abre un hilo por
+núcleo del host y el cgroup del contenedor lo frena a la fuerza. Con la máquina cargada, en
+`vision-nemotron` Whisper tardó 13.1 s por nota de mediana (40 s p90) contra 4.7 s en `g1c`, y 13
+de 49 notas pasaron los 90 s. Ollama tenía el mismo problema (4 hilos con 1.5 CPU). Además el
+modelo se cargaba sin lock (una nota y un cierre juntos podían cargar dos) y recién con la
+primera nota.
+**Arreglo**: `WHISPER_HILOS=2` y `OLLAMA_HILOS=2`, lock de carga y precarga al arrancar. Medido
+antes de elegir con `evaluacion/evaluar_whisper.py` (90 audios armados por el simulador con su
+ruido de planta, transcritos en la imagen del agente con `--cpus 2.5`): 2 hilos y beam 5 bajan la
+mediana de 4.1 a 3.3 s y el p90 de 5.9 a 4.6 s **sin cambiar ninguna nota** (45 perfectas en las
+dos). Beam 2 con VAD era más rápido (2.9 s) pero mandaba una nota más al LLM; el VAD solo hacía
+más lento a beam 5.
+**Por qué importa**: la corrección corre en una máquina que no controlamos; lo que decide si una
+nota se contesta a tiempo es que Whisper no pelee con el cgroup.
+
+### 54. Los embeddings del corpus se recalculaban en cada escenario
+
+**Dónde**: `src/sistema/rag/indexar.py`, `src/sistema/datos/embeddings_corpus.npz`.
+**Bug**: el corrector borra los volúmenes entre escenarios (`down -v`), y cada arranque volvía a
+embeber ~700 fragmentos con el Ollama de CPU durante minutos (en contratista de `vision-nemotron`:
+140/701 a los 4.5 min), compitiendo con Whisper y con el LLM de las notas.
+**Arreglo**: cache versionado (620 textos, 1.7 MB) con clave = hash del modelo + texto. Al arrancar
+se cargan los vectores de los fragmentos que coinciden y solo se embebe lo demás (otro corpus u
+otro modelo vuelven al comportamiento anterior). Se genera con `python -m sistema.rag.indexar
+--exportar-cache`; verificado que cada vector es idéntico (coseno 1.0) al que da Ollama de a uno.
+
+### 55. La sugerencia del LLM ocupaba Ollama 90 s aunque llegaran notas
+
+**Dónde**: `src/sistema/llm/ollama.py` (nuevo), `src/sistema/agente.py::_sugerencia_llm`.
+**Bug**: la sugerencia (que nunca se publica) esperaba a que no hubiera notas para *empezar*, pero
+una vez arrancada no se podía cortar: en contratista de `vision-nemotron` dos llamadas de 90 s
+coincidieron con una ráfaga de notas y 7 se cortaron detrás.
+**Arreglo**: los clientes de Ollama de baja prioridad quedan registrados; cuando llega o arranca
+una nota, respuesta o cierre, se cierra su conexión HTTP (Ollama deja de generar al perder el
+cliente; probado: el pedido se corta en 1 ms) y la sugerencia se reintenta cuando el sistema se
+desocupa (hasta 3 veces). Todos los clientes de Ollama salen ahora de una sola fábrica con timeout
+y `keep_alive=-1` (se vio una recarga de modelo de 6.6 s en medio de una nota).
+
+### 56. Las fotos se bajaban antes de la alerta de seguridad
+
+**Dónde**: `src/sistema/procesamiento/recorridas.py`, `src/sistema/agente.py`.
+**Bug**: `descargar_y_transcribir` bajaba todas las fotos (hasta 30 s cada una, con reintentos)
+antes de devolver el texto, o sea antes de `detectar()`: una foto lenta podía sacar la alerta de
+seguridad de los 30 s del criterio eliminatorio.
+**Arreglo**: audio → Whisper → alerta; las fotos se bajan después, en un hilo aparte.
+
+### 57. El corte de 90 s contaba la espera en la cola, y la nota podía quedar sin respuesta
+
+**Dónde**: `src/sistema/agente.py` (`_vigilar`, `_vigilar_nota`).
+**Bug**: el vigía empezaba a contar al encolar la nota: en una ráfaga, notas que solo esperaban su
+turno recibían "TIMEOUT". Y mientras tanto el operador no recibía nada: en fuga-sin-enlace de
+`vision-nemotron` la respuesta salió 3 s después de que volvió el enlace (E1 0%).
+**Arreglo**: el corte cuenta desde que la nota arranca; y si a los 8 s (`ACUSE_NOTA_S`) no salió
+ningún mensaje a la tablet para esa nota, se manda un acuse ("recibí tu nota…") con
+`espera_respuesta=false`: el operador simulado no lo contesta y no cuenta como pregunta (A4b), pero
+sí como respuesta durante un corte (E1).
+
+### 58. Una excepción en el camino de sensores terminaba el agente, y había HTTP dentro del loop de MQTT
+
+**Dónde**: `src/sistema/agente.py` (`on_message`, `_procesar_lectura`, `_procesar_cierre_con_corte`).
+**Bug**: las lecturas de sensores se procesaban dentro de `on_message`, sin try/except y con
+llamadas HTTP (estado de bombas, tendencia del historiador: hasta ~31 s con reintentos). paho
+relanza las excepciones de los callbacks: una caída del simulador cortaba `loop_forever` y el
+agente moría; un simulador lento frenaba el envío de todo lo publicado, alerta incluida. Las fotos
+de un cierre también se encolaban dentro de `on_message` (Postgres + enlace + descarga + visión).
+**Arreglo**: pool propio para sensores (un worker, mismo orden, con tope de cola), fotos de cierre
+en un hilo, y `on_message` envuelto: ningún mensaje puede cortar el loop de red.
+
+### 59. Las órdenes se marcaban publicadas aunque el broker no las hubiera recibido
+
+**Dónde**: `src/sistema/agente.py::reconciliar_ordenes`, `src/sistema/persistencia/ordenes.py`.
+**Bug**: se publicaba con QoS 0 sin mirar el resultado y se marcaba `pendiente_publicar=false`
+igual: con el broker caído unos segundos, la orden quedaba marcada y no salía nunca (justo lo que
+la persistencia de la Fase 12 tenía que evitar). Además, si la central o un escalado cambiaban la
+orden entre la lectura y la marca, la versión nueva quedaba marcada sin publicarse.
+**Arreglo**: todo lo que publica el sistema va con QoS 1 (paho guarda y reenvía al reconectar); la
+orden se marca solo si el broker confirmó, y solo si `actualizado_en` no cambió. La planta publica
+notas y respuestas con QoS 1: la suscripción también es QoS 1 y una nota repetida se ignora por
+id. No se usa sesión persistente a propósito: el broker no se reinicia entre escenarios del
+corrector y traería mensajes de un escenario al siguiente.
+
+### 60. Hilos que morían callados y esperas sin tope
+
+**Dónde**: `src/sistema/agente.py`, `src/sistema/persistencia/conexion.py` (nuevo), `src/sistema/llm/cierre.py`, `src/sistema/rag/embeddings.py`.
+**Bugs**:
+- el latido no tenía try/except (un error lo cortaba para siempre) e informaba 0 pendientes si
+  Postgres fallaba (un falso "todo sincronizado");
+- el LLM del cierre y los embeddings no tenían timeout: un Ollama trabado bloqueaba para siempre
+  el pool de órdenes (ningún cierre más llegaba a `Ejecutada`);
+- Postgres sin `connect_timeout` ni `statement_timeout`, y con todo el DDL (incluido un `ALTER
+  TABLE`) en **cada** conexión — el latido abre dos cada 2 s;
+- la orden inmediata se perdía para siempre si Postgres no respondía en ese momento (con el evento
+  ya publicado), y el cierre tenía una conexión abierta mientras corría Whisper;
+- el arranque reintentaba el parser hasta ~3 min **antes** de conectarse a MQTT (sin latido:
+  `sistema_mudo` espera 180 s), y si fallaba todo iba al LLM para siempre;
+- sin manejo de SIGTERM: Python era PID 1, ignoraba `docker stop` y lo mataban a los 10 s.
+**Arreglo**: latido con try/except y último valor conocido; timeouts en todos los clientes de
+Ollama y en Postgres; DDL una vez por proceso; reintentos con backoff para la orden inmediata y
+el cierre; conexión a MQTT y latido primero, preparación en paralelo (las notas la esperan hasta
+60 s) y parser reintentado en segundo plano; `init: true`, handler de SIGTERM y healthchecks
+informativos. 20 tests nuevos de orquestación en `tests/test_lote6.py`.
+
+### 61. La red `backend` daba salida a internet saltando el enlace
+
+**Dónde**: `docker-compose.yml`.
+**Bug**: el agente corre en la PC de planta y el contrato dice que sale a internet solo por
+`enlace:3128`, pero también estaba en `backend`, una red común con salida directa.
+**Arreglo**: `backend` pasa a `internal: true`; la central suma una red `publica` solo para
+exponer el puerto 8200.
+
+### 62. Deformaciones de Whisper que hacían perder una falla o un equipo
+
+**Dónde**: `src/sistema/procesamiento/novedades.py`, `src/sistema/procesamiento/parser_notas.py`.
+**Bugs**: "colqueteo/golpecheo/golpe de metálico" no escalaban el golpeteo (B1 en tormenta); "el
+filtro B-Mario 10" / "Bmedio 10" / "BME10" iban al LLM, que devolvía una fila sin equipo ni valor
+y se pedía confirmar un parte vacío (A4a en ataque); "Está del fondo" no se reconocía; y una regla
+vieja convertía "la del medio 115" en "la del me dio 115", perdiendo el equipo.
+**Arreglo**: "metálico" alcanza para el golpeteo (en la verdad de campo de todas las corridas
+aparece solo así, 20 de 20); normalizaciones nuevas para el filtro B y "la del fondo"; la regla de
+"medió" ya no toca "la del medio". `evaluar_parser` sobre las 759 notas reales: 618 → 620
+perfectas, ninguna nueva que falle.
+**No arreglable**: las notas sin ningún número ("parada, en reserva", "pierde por la
+empaquetadura", la alerta S1) nunca suman A2/A3: el corrector solo cuenta borradores con filas con
+valor y el operador simulado no confirma un borrador sin valores (`puntuar.py::borradores_de`).
+
+### 63. El mismo evento escalado dos veces pisaba una orden ya Aprobada
+
+**Dónde**: `src/sistema/agente.py::_orden_inmediata_best_effort`.
+**Bug**: una falla dicha de palabra escala al llegar la nota (L4.9) y otra vez al confirmarse el
+parte, con el **mismo id** de evento. El id de la orden sale del id del evento, y la segunda vez la
+evidencia (mezclada con otras novedades del parte) daba otra tarea: no era "equivalente" y el UPSERT
+pisaba la orden. En `lote6-velocidad` (ataque) una T-F-CAR **Aprobada**, ya publicada y con el
+técnico despachado por la planta, pasó a I-VAL **Pendiente**; el cierre llegó sobre una orden no
+aprobada y no se ejecutó (G1 75%). En `cpu4` no se vio de casualidad (otro orden de llegada).
+**Arreglo**: si ya hay una orden para ese evento, no se vuelve a decidir. 2 tests de regresión.
+**Por qué importa**: una decisión publicada no puede cambiar sola por una segunda pasada del mismo
+dato — para el planificador es incoherente y para la planta ya es una orden en ejecución.
+
+### 64. "El A1" (por "la uno") mandaba la nota al LLM y se perdía el borrador
+
+**Dónde**: `src/sistema/procesamiento/parser_notas.py`.
+**Bug**: Whisper escribe "El A1" por "la uno" (17 de 17 veces en las corridas guardadas). El parser
+no lo reconocía, la nota iba al LLM y en `lote6-velocidad` (tormenta, NOTA-00018) el LLM se cortó
+a los 25 s: sin borrador (A1, A3, B1).
+**Arreglo**: normalización "el/en A1|A2|A3" → "la 1|2|3", sin tocar decimales. `evaluar_parser`
+sobre 840 notas reales: 685 → 701 perfectas, 34 → 18 al LLM, ninguna falla nueva.
+
+### 65. Una foto que no se podía analizar quedaba pendiente para siempre
+
+**Dónde**: `src/sistema/procesamiento/fotos.py::reconciliar_fotos_pendientes`.
+**Bug**: con la visión configurada (`NVIDIA_API_KEY`), cualquier error al analizar una foto la
+dejaba en la cola y se reintentaba cada 5 s sin fin: una foto que no existe (404) o una key o
+modelo inválidos mantenían `pendientes_sincronizar > 0` para siempre, y E2 pide que la cola quede
+en 0 después del corte. Lo encontró `evaluacion/verificar_entrega2.py` (31/32): el 19/11 pasaba
+porque todavía no había key y la foto se resolvía "sin análisis".
+**Arreglo**: un 4xx (salvo 408/429) es permanente → la foto se resuelve sin análisis; timeouts, 5xx
+y 429 se reintentan hasta 5 veces. 2 tests nuevos; la verificación en vivo vuelve a 32/32.
+
+### 66. El ranking por palabras enterraba las órdenes del historial (`ts_rank_cd`)
+
+**Dónde**: `src/sistema/rag/buscar.py::_ranking_lexico`.
+**Bug**: medido con el evaluador oficial de la planta (`evaluar_retrieval.py --oficial`, 71
+preguntas, 24/11), la categoría `historial` daba hit@5 0.18 contra 0.82 del BM25 de la cátedra: las
+órdenes cortas del historial casi nunca aparecían. Con una consulta OR, `ts_rank_cd` (densidad de
+cobertura) premia a las secciones largas de manual que juntan muchas palabras sueltas cerca.
+**Arreglo**: `ts_rank` en vez de `ts_rank_cd`. Se probaron también las normalizaciones por largo de
+Postgres (1 y 2) en las dos funciones: todas peores. Resultado de la híbrida: hit@5 0.690 → 0.746,
+recall@5 0.563 → 0.624, mrr 0.552 → 0.574, historial 0.18 → 0.45.
+**Qué no se hizo**: bajar el peso de la mitad semántica en el RRF acerca la híbrida al full-text
+(con peso 0.3, hit@5 0.803), pero sería ajustar sobre las mismas 71 preguntas con que se evalúa. Se
+deja RRF con pesos iguales. Solo lo usa el análisis de órdenes (sugerencia al planificador, nunca
+publicada), así que no cambia nada de lo que mide el corrector automático.

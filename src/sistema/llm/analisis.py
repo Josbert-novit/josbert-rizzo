@@ -25,7 +25,6 @@ from planta_contrato import EstadoOrden, EventoSistema, OrdenSistema, Repuesto
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.json_schema import SkipJsonSchema
 
-from sistema.config import config
 from sistema.integraciones.planta_http import PlantaHTTP
 from sistema.llm.control import ConsumoTokens, config_de_callback
 from sistema.procesamiento.recorridas import cargar_parte
@@ -273,17 +272,17 @@ class Analizador:
 
     def _cargar_chat(self) -> ChatEstructurado:
         if self._chat is None:
-            from langchain_ollama import ChatOllama
+            from sistema.llm.ollama import chat_ollama
 
             # Topes duros (hallazgo H7, Fase 15): `num_predict` corta la generación aunque el
             # modelo no cierre el JSON; `num_ctx` evita que Ollama trunque en silencio un contexto
             # de evidencia más largo que su default (2048); el timeout HTTP hace que una llamada
             # colgada levante una excepción — `procesar_evento_escalado` la convierte en una orden
             # de inspección en vez de quedarse sin orden.
-            self._chat = ChatOllama(
-                model=config.llm_modelo_extraccion, base_url=config.ollama_url, temperature=0,
+            # Lote 6 (A3): de baja prioridad — una nota que llega corta este pedido (ver `llm/ollama.py`).
+            self._chat = chat_ollama(
+                timeout_s=TIMEOUT_LLAMADA_ANALISIS_S, baja_prioridad=True,
                 num_predict=MAX_TOKENS_SALIDA_ANALISIS, num_ctx=CONTEXTO_ANALISIS_TOKENS,
-                client_kwargs={"timeout": TIMEOUT_LLAMADA_ANALISIS_S},
             ).with_structured_output(Diagnostico)
         return self._chat
 
