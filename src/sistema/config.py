@@ -14,8 +14,14 @@ class Config:
     llm_modelo_extraccion = os.getenv("LLM_MODELO_EXTRACCION") or "qwen2.5:1.5b"
 
     # RAG (Fase 5): embeddings locales, mismo motivo que el LLM de extracción (sin depender de
-    # internet/nube). nomic-embed-text es chico (~274 MB) y anda bien en CPU.
-    rag_modelo_embeddings = os.getenv("RAG_MODELO_EMBEDDINGS") or "nomic-embed-text"
+    # internet/nube). Lote 7: bge-m3 (el de las demos de la cátedra, multilingüe) en lugar de
+    # nomic-embed-text: con el evaluador oficial la híbrida pasó de hit@5 0.746 a 0.901 (BUGS #68).
+    # Se puede volver a nomic con la variable + reindexar; la dimensión sale de `rag/esquema.py`.
+    rag_modelo_embeddings = os.getenv("RAG_MODELO_EMBEDDINGS") or "bge-m3"
+    # Context builder (5.6, `rag/contexto.py`): tope de caracteres de las citas que entran al
+    # prompt del análisis. Con `num_ctx=4096` y el resto de la evidencia, 4000 caracteres (~1000
+    # tokens) deja holgura; un fragmento que no entra se descarta entero.
+    rag_max_caracteres_contexto = int(os.getenv("RAG_MAX_CARACTERES_CONTEXTO", "4000"))
 
     # Visión (Entrega 2, Fase 13): análisis de fotos de cierres vía NVIDIA NIM. A diferencia de
     # transcripción/extracción/embeddings, acá no hay un modelo local liviano equivalente para

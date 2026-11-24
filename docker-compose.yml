@@ -22,6 +22,8 @@ services:
       HISTORIAN_URL: http://sim:8100
       POSTGRES_HOST: postgres
       OLLAMA_URL: http://ollama:11434
+      # Mismo modelo que se hornea en la imagen de ollama (build arg de abajo).
+      RAG_MODELO_EMBEDDINGS: ${RAG_MODELO_EMBEDDINGS:-bge-m3}
       HTTP_PROXY: http://enlace:3128
       HTTPS_PROXY: http://enlace:3128
       NO_PROXY: broker,sim,localhost,postgres,ollama
@@ -68,7 +70,7 @@ services:
       context: ./ollama
       args:
         LLM_MODELO_EXTRACCION: ${LLM_MODELO_EXTRACCION:-qwen2.5:1.5b}
-        RAG_MODELO_EMBEDDINGS: ${RAG_MODELO_EMBEDDINGS:-nomic-embed-text}
+        RAG_MODELO_EMBEDDINGS: ${RAG_MODELO_EMBEDDINGS:-bge-m3}
     environment:
       HTTP_PROXY: http://enlace:3128
       HTTPS_PROXY: http://enlace:3128

@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pgvector import Vector
 
 from sistema.rag.embeddings import Embeddings
-from sistema.rag.esquema import conectar
+from sistema.rag.esquema import CONFIG_FULL_TEXT, conectar
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class Fragmento:
 
 
 def consulta_full_text(pregunta: str) -> str | None:
-    """Arma una consulta OR para `to_tsquery('spanish', ...)` a partir de la pregunta libre.
+    """Arma una consulta OR para `to_tsquery('es_sin_tildes', ...)` a partir de la pregunta libre.
 
     OR y no AND (`plainto_tsquery`): una pregunta en lenguaje natural casi nunca tiene todas sus
     palabras en el mismo fragmento; el ranking (`ts_rank`) ya premia a los que tienen más.
@@ -93,12 +93,12 @@ def _ranking_lexico(conn, pregunta: str, condiciones: list[str], parametros: lis
     consulta = consulta_full_text(pregunta)
     if consulta is None:
         return []
-    where = " AND ".join(["tsv @@ q", *condiciones])
+    where = " AND ".join(["tsv_st @@ q", *condiciones])
     filas = conn.execute(
         f"""
-        SELECT id FROM rag_fragmentos, to_tsquery('spanish', %s) AS q
+        SELECT id FROM rag_fragmentos, to_tsquery('{CONFIG_FULL_TEXT}', %s) AS q
         WHERE {where}
-        ORDER BY ts_rank(tsv, q) DESC, id
+        ORDER BY ts_rank(tsv_st, q) DESC, id
         LIMIT %s
         """,
         [consulta, *parametros, limite],

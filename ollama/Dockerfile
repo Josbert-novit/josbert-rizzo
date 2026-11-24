@@ -8,7 +8,8 @@ FROM ollama/ollama:0.5.4
 # procesar ninguna nota. Horneando el modelo en el build, el contenedor arranca con el modelo ya
 # listo, sin depender de la red en el camino crítico de la corrección.
 ARG LLM_MODELO_EXTRACCION=qwen2.5:1.5b
-ARG RAG_MODELO_EMBEDDINGS=nomic-embed-text
+# Lote 7: bge-m3 (~1.2 GB) en lugar de nomic-embed-text (BUGS #68).
+ARG RAG_MODELO_EMBEDDINGS=bge-m3
 
 RUN ollama serve & \
     SERVER_PID=$! && \

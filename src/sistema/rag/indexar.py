@@ -49,6 +49,13 @@ _NO_APLICA = re.compile(r"otros modelos|otras plantas|\bPIA-[12]\b", re.IGNORECA
 CACHE_EMBEDDINGS = Path(__file__).resolve().parents[1] / "datos" / "embeddings_corpus.npz"
 
 
+def texto_para_embeber(doc: str, titulo: str | None, texto: str) -> str:
+    """Contextual chunking (módulo 2.2, mismo formato que `planta_kit.rag.IndicePg.ingestar`): el
+    vector lleva "Documento › Sección" adelante, así un fragmento se entiende solo (p. ej. una orden
+    del historial suma su equipo y su tarea: "historial › OT-25-0024 B-101 I-VIB")."""
+    return f"{doc} › {titulo}\n{texto}" if titulo else f"{doc}\n{texto}"
+
+
 def clave_cache(texto: str, modelo: str | None = None) -> str:
     modelo = modelo or config.rag_modelo_embeddings
     return hashlib.sha1(f"{modelo}|{texto}".encode("utf-8")).hexdigest()
@@ -68,7 +75,7 @@ def exportar_cache(http: PlantaHTTP, embeddings: Embeddings, ruta: Path = CACHE_
     import numpy as np
 
     fragmentos = http.fragmentos()
-    textos = sorted({f["texto"] for f in fragmentos})
+    textos = sorted({texto_para_embeber(f["doc"], f.get("titulo"), f["texto"]) for f in fragmentos})
     claves, vectores = [], []
     for inicio in range(0, len(textos), lote):
         trozo = textos[inicio : inicio + lote]
@@ -120,7 +127,7 @@ def indexar(
     """Dos pasadas (Entrega 2, hallazgo H1 de la Fase 15):
 
     1. **Texto** de todos los fragmentos, sin embedding. Tarda segundos y no usa Ollama: la
-       columna `tsv` (full-text) se genera sola, así que la parte léxica de la búsqueda híbrida
+       columna `tsv_st` (full-text sin tildes) se genera sola, así que la parte léxica de la búsqueda híbrida
        (`buscar.py`) anda desde el arranque. Antes, con una sola pasada que embebía todo, el
        corrector (que borra volúmenes entre escenarios) nunca pasaba de ~100/701 fragmentos y el
        RAG quedaba casi vacío durante todo el escenario.
@@ -154,20 +161,28 @@ def indexar(
             )
         log.info("texto de %d fragmentos cargado (búsqueda por palabras lista)", len(fragmentos))
 
-        pendientes = conn.execute(
-            "SELECT id, texto FROM rag_fragmentos WHERE embedding IS NULL ORDER BY id"
-        ).fetchall()
+        # Pendiente = sin vector, o con un vector de otro modelo/texto (clave distinta).
+        pendientes: list[tuple[str, str, str]] = []  # (id, texto a embeber, clave)
+        for fid, doc, titulo, cuerpo, sin_vector, guardada in conn.execute(
+            "SELECT id, doc, titulo, texto, embedding IS NULL, embedding_clave FROM rag_fragmentos ORDER BY id"
+        ).fetchall():
+            texto = texto_para_embeber(doc, titulo, cuerpo)
+            clave = clave_cache(texto)
+            if sin_vector or guardada != clave:
+                pendientes.append((fid, texto, clave))
         try:
             cache = cargar_cache()
         except Exception:
             log.exception("no se pudo leer el cache de embeddings; se embebe todo")
             cache = {}
         if cache:
-            desde_cache = [(cache[k], fid) for fid, texto in pendientes if (k := clave_cache(texto)) in cache]
+            desde_cache = [(cache[clave], clave, fid) for fid, _, clave in pendientes if clave in cache]
             with conn.cursor() as cur:
-                cur.executemany("UPDATE rag_fragmentos SET embedding = %s WHERE id = %s", desde_cache)
-            ids_cache = {fid for _, fid in desde_cache}
-            pendientes = [(fid, texto) for fid, texto in pendientes if fid not in ids_cache]
+                cur.executemany(
+                    "UPDATE rag_fragmentos SET embedding = %s, embedding_clave = %s WHERE id = %s", desde_cache
+                )
+            ids_cache = {fid for _, _, fid in desde_cache}
+            pendientes = [p for p in pendientes if p[0] not in ids_cache]
             log.info("embeddings desde el cache precalculado: %d", len(desde_cache))
         log.info("embeddings pendientes: %d", len(pendientes))
         total = 0
@@ -175,11 +190,11 @@ def indexar(
             while debe_pausar is not None and debe_pausar():
                 time.sleep(0.5)
             lote = pendientes[inicio : inicio + TAMANO_LOTE]
-            vectores = embeddings.embed_documentos([texto for _, texto in lote])
+            vectores = embeddings.embed_documentos([texto for _, texto, _ in lote])
             with conn.cursor() as cur:
                 cur.executemany(
-                    "UPDATE rag_fragmentos SET embedding = %s WHERE id = %s",
-                    [(vector, fid) for (fid, _), vector in zip(lote, vectores)],
+                    "UPDATE rag_fragmentos SET embedding = %s, embedding_clave = %s WHERE id = %s",
+                    [(vector, clave, fid) for (fid, _, clave), vector in zip(lote, vectores)],
                 )
             total += len(lote)
             log.info("embeddings %d/%d", total, len(pendientes))

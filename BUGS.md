@@ -1000,3 +1000,34 @@ recall@5 0.563 → 0.624, mrr 0.552 → 0.574, historial 0.18 → 0.45.
 (con peso 0.3, hit@5 0.803), pero sería ajustar sobre las mismas 71 preguntas con que se evalúa. Se
 deja RRF con pesos iguales. Solo lo usa el análisis de órdenes (sugerencia al planificador, nunca
 publicada), así que no cambia nada de lo que mide el corrector automático.
+
+### 67. "válvulas" no encontraba "valvulas": la búsqueda por palabras no quitaba tildes
+
+**Dónde**: `src/sistema/rag/esquema.py` (columna `tsv_st`), `src/sistema/rag/buscar.py::_ranking_lexico`.
+**Bug**: las órdenes del historial están escritas a mano sin tildes ("valvulas", "caudalimetro",
+"succion"), y el diccionario `spanish` de Postgres no las quita: una pregunta con "válvulas" no
+coincidía con el texto. El BM25 de la cátedra sí las quita.
+**Arreglo**: configuración de búsqueda propia `es_sin_tildes` (`spanish` + extensión `unaccent`),
+columna generada nueva `tsv_st` (la vieja `tsv` se borra si existe, así migra una base ya indexada).
+Medido con el evaluador oficial (71 preguntas): solo full-text, hit@5 0.817 → 0.831, recall@5
+0.688 → 0.707, historial hit@5 0.364 → 0.455; híbrida, hit@1 0.437 → 0.451 y mrr 0.574 → 0.587,
+hit@5 y recall@5 iguales. Ninguna métrica empeora en la híbrida.
+
+### 68. La mitad semántica de la búsqueda restaba: `nomic-embed-text` → `bge-m3`
+
+**Dónde**: `src/sistema/config.py` (`rag_modelo_embeddings`), `src/sistema/rag/embeddings.py`,
+`src/sistema/rag/esquema.py` (dimensión), `ollama/Dockerfile`, `docker-compose.yml`,
+`src/sistema/datos/embeddings_corpus.npz`.
+**Bug**: con el evaluador oficial, la búsqueda híbrida (palabras + nomic) quedaba **por debajo** de
+la mitad por palabras sola (hit@5 0.746 contra 0.831): los embeddings de nomic, un modelo chico y
+pensado para inglés, metían ruido al fusionar.
+**Arreglo**: medido antes de cambiar nada (corpus embebido aparte, sin tocar la tabla): la híbrida
+con `bge-m3` (multilingüe, el que usan las demos de la cátedra) dio hit@1 0.634, hit@5 **0.901**,
+recall@5 0.711, mrr 0.747 (BM25 de la cátedra: 0.352 / 0.845 / 0.664 / 0.573). Consulta en vivo:
+0.45 s de mediana en la CPU de Ollama. Se cambió el modelo por defecto; la dimensión del vector sale
+del modelo (1024 para bge-m3, 768 para nomic) y una base vieja se migra sola (se recrea la columna
+y se vuelve a llenar desde el cache). Los prefijos `search_document:`/`search_query:` quedan solo
+para nomic. El precalentado del agente carga también el modelo de embeddings (la primera consulta
+en frío tardó 9 s). Cache del corpus regenerado con bge-m3 (`indexar --exportar-cache`).
+**Costo**: imagen de Ollama ~0.9 GB más grande; embeber el corpus entero en esta CPU tarda ~30 min,
+por eso va precalculado en el repo.

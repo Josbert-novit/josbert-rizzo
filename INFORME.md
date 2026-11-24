@@ -12,7 +12,15 @@ inferencia es CPU.
 | --- | --- | --- | --- | --- | --- | --- |
 | Transcripción de audio (1.2) | `faster-whisper` modelo **small** (CTranslate2, int8) | Systran (reempaquetado de Whisper de OpenAI) | `Systran/faster-whisper-small`, revisión `536b066`; faster-whisper 1.2.1, CTranslate2 4.9.0 | **Local** | ~244 M | Tiene que seguir andando con el enlace caído (`fuga-sin-enlace` corta el acceso a internet a los 10 min) — nada que dependa de una API externa puede estar en el camino de la transcripción ni de la detección de alerta de seguridad. |
 | Extracción de filas del parte (1.3) | **qwen2.5:1.5b** | Alibaba / Ollama | `qwen2.5:1.5b`, id `65ec06548149`, cuantización Q4_K_M; Ollama 0.5.4 | **Local** | 1.5 B | Mismo motivo: la extracción alimenta la detección de seguridad indirectamente (el diálogo de confirmación) y no puede depender del enlace. Un modelo de 1.5 B es lo más grande que corre con latencia aceptable (~5-10 s por llamada) en esta CPU sin GPU — se probó porque es el piso razonable para `structured output` vía Ollama. |
-| Embeddings para RAG (5.1) | **nomic-embed-text** | Nomic AI / Ollama | `nomic-embed-text:latest`, id `0a109f422b47`, F16, 768 dimensiones; Ollama 0.5.4 | **Local** | 136.7 M | Mismo criterio: sin dependencia de nube. Necesita los prefijos de tarea (`search_document:`/`search_query:`) para rendir bien — encontrado y arreglado en vivo (bug #19, `BUGS.md`): sin ellos, `hit@5` caía de 0.648 a 0.535 contra la suite de 71 preguntas. |
+| Embeddings para RAG (5.1) | **bge-m3** (desde el Lote 7; antes `nomic-embed-text`) | BAAI / Ollama | `bge-m3:latest`, id `790764642607`, F16, 1024 dimensiones; Ollama 0.5.4 | **Local** | 566.7 M | Mismo criterio: sin dependencia de nube. Es el que usan las demos de la cátedra y es multilingüe. Medido con el evaluador oficial (71 preguntas): la búsqueda híbrida pasó de hit@5 0.746 con nomic a **0.901** con bge-m3 (BM25 de la cátedra: 0.845); ver la tabla de abajo y `BUGS.md` #68. El corpus va precalculado en el repo, así que en vivo solo se embebe la consulta (0.45 s de mediana). |
+
+**Retrieval** (evaluador oficial `corpus.evaluar`, 71 preguntas, corpus de 701 fragmentos):
+
+| Buscador | hit@1 | hit@5 | recall@5 | mrr | distractor@5 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Híbrida con nomic-embed-text (antes) | 0.451 | 0.746 | 0.624 | 0.587 | 0.014 |
+| **Híbrida con bge-m3 + contextual chunking (la que usa el sistema)** | **0.634** | **0.901** | **0.725** | **0.747** | **0.014** |
+| BM25 de la cátedra (línea de base) | 0.352 | 0.845 | 0.664 | 0.573 | 0.099 |
 
 Versiones leídas de las imágenes Docker del sistema (`ollama list`, `ollama show` y la caché de
 Hugging Face de la imagen del agente). Librerías principales: Python 3.11.18, LangChain 1.5.0,
@@ -142,8 +150,9 @@ corte (`pendientes_sincronizar: 1`) y se analizó con NVIDIA cuando volvió el e
 cerrada que publicamos", pero la lista no está en el Enunciado ni en los anexos, y ninguno de los
 tres documentos nombra modelos de embeddings. Se eligieron modelos locales chicos que entran en la
 PC de planta (4 núcleos, 8 GB, sin GPU), y para visión uno de NVIDIA como pide el Anexo 2.
-`nomic-embed-text` queda sujeto a confirmación del docente; si no estuviera en la lista, se cambia
-con la variable `RAG_MODELO_EMBEDDINGS` y se reindexa, sin tocar código.
+Para embeddings se pasó a `bge-m3`, el que usan las demos de la cátedra (Lote 7), así que esa duda
+queda resuelta. Si hiciera falta otro, se cambia con la variable `RAG_MODELO_EMBEDDINGS`
+(la dimensión del vector sale sola de `rag/esquema.py`) y se reindexa, sin tocar código.
 
 ## Qué se decidió sin LLM, y por qué (verificación final, Fase 15)
 
@@ -176,9 +185,8 @@ El LLM local sigue con la extracción de respaldo y la sugerencia de causa/tarea
 planificador. Ninguna IA paga ni de nube en el camino crítico: la única llamada de nube es la de
 visión (fotos), que queda en cola si no hay enlace. El costo en USD sigue siendo 0.
 
-`nomic-embed-text` (embeddings) se mantiene desde la Entrega 1. Si no estuviera en la lista
-cerrada de modelos de la cátedra, el sistema sigue andando con la mitad por palabras de la búsqueda
-híbrida.
+Los embeddings pasaron de `nomic-embed-text` (Entrega 1) a `bge-m3` en el Lote 7. Si Ollama no
+respondiera, el sistema sigue andando con la mitad por palabras de la búsqueda híbrida.
 
 ## Auditoría de cumplimiento del anexo (19/11)
 
@@ -253,8 +261,8 @@ eran los modelos sino cómo usaban la CPU. Cambios (detalle en `BUGS.md` #53–#
   | 2 hilos, beam 5 + VAD | 3.8 s | 6.3 s | 44 | 23 |
 
   Se eligió la que no cambia ninguna transcripción; el modelo sigue siendo `small` int8.
-- **Embeddings** (`nomic-embed-text`): precalculados una vez y versionados (620 textos, 1.7 MB,
-  idénticos a los que da Ollama). En vivo ya no se embebe el corpus: 0 llamadas de embeddings por
+- **Embeddings** (`bge-m3` desde el Lote 7; antes `nomic-embed-text`): precalculados una vez y
+  versionados (620 textos, idénticos a los que da Ollama). En vivo ya no se embebe el corpus: 0 llamadas de embeddings por
   escenario salvo las consultas.
 - **qwen2.5:1.5b**: modelos siempre cargados (`keep_alive=-1`), un pedido a la vez, 2 hilos; la
   sugerencia del análisis (que no se publica) se corta cuando llega una nota y se reintenta después.
@@ -265,8 +273,8 @@ eran los modelos sino cómo usaban la CPU. Cambios (detalle en `BUGS.md` #53–#
 | Whisper mediana / p90 | 13.1 / 40 s | 4.7 / 10 s | **3.8 / 5.4 s** |
 | Notas que esperaron >30 s en la cola | 15 | 2 | **0** |
 | Notas de más de 90 s | 13 de 49 | 0 de 51 | **0 de 82** |
-| Primera respuesta en la tablet, p90 | — | — | **17.3 s** |
-
-Con los dos bugs que encontró esa corrida arreglados (`BUGS.md` #63, #64), `lote6b` dio **89.7 /
-100, APRUEBA, sin eliminatorias**, con los 7 escenarios de la rúbrica: Whisper 3.0 s de mediana y
+| Primera respuesta en la tablet, p90 | — | — | **17.3 s** |
+
+Con los dos bugs que encontró esa corrida arreglados (`BUGS.md` #63, #64), `lote6b` dio **89.7 /
+100, APRUEBA, sin eliminatorias**, con los 7 escenarios de la rúbrica: Whisper 3.0 s de mediana y
 4.4 s de p90, primera respuesta en la tablet en 7.4 s (p90), 0 notas de más de 90 s.

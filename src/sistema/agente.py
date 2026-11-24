@@ -1062,6 +1062,13 @@ def _precalentar_ollama() -> None:
         log.info("Ollama precalentado en %.1f s", time.monotonic() - inicio)
     except Exception:
         log.warning("no se pudo precalentar Ollama (se carga con la primera nota que lo use)")
+    # Lote 7: también el de embeddings (bge-m3 tardó 9 s en la primera consulta en frío).
+    try:
+        inicio = time.monotonic()
+        embeddings.embed_consulta("ok")
+        log.info("embeddings precalentados en %.1f s", time.monotonic() - inicio)
+    except Exception:
+        log.warning("no se pudo precalentar el modelo de embeddings (se carga en la primera búsqueda)")
 
 
 ESPERA_PARSER_S = 20.0

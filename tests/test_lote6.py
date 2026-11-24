@@ -334,7 +334,11 @@ class _EmbeddingsFalsos:
 
 class _HttpCorpus:
     def fragmentos(self):
-        return [{"id": "a", "texto": "uno"}, {"id": "b", "texto": "dos dos"}, {"id": "c", "texto": "uno"}]
+        return [
+            {"id": "a", "doc": "D", "titulo": "T", "texto": "uno"},
+            {"id": "b", "doc": "D", "titulo": "T2", "texto": "dos dos"},
+            {"id": "c", "doc": "D", "titulo": "T", "texto": "uno"},
+        ]
 
 
 def test_cache_de_embeddings_ida_y_vuelta(tmp_path):
@@ -342,7 +346,16 @@ def test_cache_de_embeddings_ida_y_vuelta(tmp_path):
     emb = _EmbeddingsFalsos()
     assert indexar_mod.exportar_cache(_HttpCorpus(), emb, ruta) == 2  # textos repetidos una vez
     cache = indexar_mod.cargar_cache(ruta)
-    assert list(cache[indexar_mod.clave_cache("dos dos")]) == [7.0, 1.0]
+    texto = indexar_mod.texto_para_embeber("D", "T2", "dos dos")
+    assert list(cache[indexar_mod.clave_cache(texto)]) == [float(len(texto)), 1.0]
+
+
+def test_contextual_chunking_antepone_documento_y_seccion():
+    # Lote 7 (módulo 2.2): el vector lleva "Documento › Sección" adelante.
+    assert indexar_mod.texto_para_embeber("historial", "OT-25-0024 B-101 I-VIB", "vibra") == (
+        "historial › OT-25-0024 B-101 I-VIB\nvibra"
+    )
+    assert indexar_mod.texto_para_embeber("MBP-4", None, "x") == "MBP-4\nx"
 
 
 def test_clave_del_cache_cambia_con_el_modelo():

@@ -8,7 +8,7 @@ notas de voz del operador, detectar anomalías y asistir al planificador en la a
 
 - Docker + Docker Compose.
 - ~8 GB de RAM libres (Ollama corre dos modelos locales: `qwen2.5:1.5b` para extracción y
-  `nomic-embed-text` para embeddings — ver [INFORME.md](INFORME.md)) y unos 10 GB de disco para
+  `bge-m3` para embeddings — ver [INFORME.md](INFORME.md)) y unos 10 GB de disco para
   las imágenes con los modelos horneados.
 - Para correr los tests fuera de Docker: Python ≥3.11.
 - El repo de la planta [academia2026-tp](../academia2026-tp) clonado al lado de este (`../`).
@@ -17,7 +17,7 @@ notas de voz del operador, detectar anomalías y asistir al planificador en la a
 
 | Dónde | Qué | Por qué |
 | --- | --- | --- |
-| **PC de planta** (`planta-lan`, label `academia.planta: pc`, sale solo por `enlace:3128`) | `agente` (MQTT, transcripción Whisper, detección, alerta S1-S4, diálogo con la tablet, reglas de aprobación, órdenes, cierres) y `ollama` (qwen2.5:1.5b para extracción/análisis/cierre, nomic-embed-text para el RAG) | Todo lo que puntúa en tiempo real o protege a las personas tiene que andar con el enlace caído (`fuga-sin-enlace`) |
+| **PC de planta** (`planta-lan`, label `academia.planta: pc`, sale solo por `enlace:3128`) | `agente` (MQTT, transcripción Whisper, detección, alerta S1-S4, diálogo con la tablet, reglas de aprobación, órdenes, cierres) y `ollama` (qwen2.5:1.5b para extracción/análisis/cierre, bge-m3 para el RAG) | Todo lo que puntúa en tiempo real o protege a las personas tiene que andar con el enlace caído (`fuga-sin-enlace`) |
 | **Red propia** (`backend`) | `postgres` (pgvector, diálogos, órdenes, cola de fotos) y `central` (interfaz HTTP del planificador, supervisor e inspector, puerto 8200) | Estado durable que sobrevive al corte de luz y una interfaz para las personas |
 | **Nube** (solo con el enlace arriba) | Visión NVIDIA NIM (`nvidia/nemotron-3.5-super-vl-120b-a12b`) para las fotos | No hay un modelo de visión que corra en CPU sin GPU. Sin enlace, la foto queda en cola y se analiza cuando vuelve; la alerta y la orden nunca esperan a la visión |
 
@@ -227,10 +227,12 @@ correr ahí. Corre en su propio hilo (`_indexar_corpus_en_segundo_plano`), **des
 agente ya está respondiendo (bug #25), y en **dos pasadas** (`BUGS.md` #28):
 
 1. el texto de los ~700 fragmentos, sin embeddings: tarda segundos y con eso ya anda la búsqueda
-   **por palabras** (columna `tsv` con `to_tsvector('spanish', …)`, índice GIN, título con más peso);
-2. los embeddings (`nomic-embed-text`), de a 4, pausándose mientras haya una nota, una respuesta
-   o un cierre en curso (`llm/control.py::trabajo_urgente`): en esta CPU sin GPU tardan varios
-   minutos y no pueden quitarle el Ollama a las notas.
+   **por palabras** (columna `tsv_st` con `to_tsvector('es_sin_tildes', …)` = `spanish` +
+   `unaccent`, índice GIN, título con más peso);
+2. los embeddings (`bge-m3`): salen del cache precalculado del repo
+   (`datos/embeddings_corpus.npz`); solo lo que no esté ahí (otro corpus u otro modelo) se embebe
+   en vivo, de a uno, pausándose mientras haya una nota, una respuesta o un cierre en curso
+   (`llm/control.py::trabajo_urgente`), para no quitarle el Ollama a las notas.
 
 La búsqueda (`rag/buscar.py`) es **híbrida**: une el ranking por palabras (`ts_rank`) con el
 semántico (distancia coseno en pgvector) por *Reciprocal Rank Fusion* (k=60). Si todavía no hay
@@ -278,23 +280,35 @@ docker compose run --rm -v ../academia2026-tp/planta:/academia/planta:ro agente 
     python -m evaluacion.evaluar_retrieval --oficial
 ```
 
-Resultado (24/11, corpus completo de 701 fragmentos, 71 preguntas):
+Resultado (corpus completo de 701 fragmentos, 71 preguntas):
 
 | Buscador | hit@1 | hit@5 | recall@5 | mrr | distractor@5 |
 |---|---:|---:|---:|---:|---:|
-| Nuestra híbrida (full-text + pgvector, RRF) — la que usa el sistema | 0.437 | 0.746 | 0.624 | 0.574 | 0.014 |
-| Nuestra solo full-text (`ts_rank`) | **0.577** | 0.817 | **0.688** | **0.671** | **0.000** |
-| BM25 de la cátedra (línea de base) | 0.352 | **0.845** | 0.664 | 0.573 | 0.099 |
+| **Nuestra híbrida con bge-m3 — la que usa el sistema** | **0.634** | **0.901** | **0.725** | **0.747** | 0.014 |
+| Nuestra solo full-text (`ts_rank`, sin tildes) | 0.549 | 0.831 | 0.707 | 0.657 | **0.000** |
+| Híbrida con nomic-embed-text (hasta el Lote 6) | 0.451 | 0.746 | 0.624 | 0.587 | 0.014 |
+| BM25 de la cátedra (línea de base) | 0.352 | 0.845 | 0.664 | 0.573 | 0.099 |
 
-- La mitad por palabras le gana a BM25 en hit@1, recall@5, mrr y distractores. Queda un poco abajo
-  en hit@5, sobre todo en `historial` (0.36 contra 0.82).
-- Pasar de `ts_rank_cd` a `ts_rank` (bug #66) subió la híbrida de 0.690 a 0.746 de hit@5.
-- La mitad semántica (`nomic-embed-text`, un modelo chico) **resta** en esta suite: la híbrida queda
-  por debajo del full-text solo. Se mantiene igual porque pgvector es obligatorio en el TP y aporta
-  en preguntas con sinónimos. No se ajustaron los pesos del RRF para no sobreajustar a las mismas 71
-  preguntas con que se evalúa.
+Cómo se llegó (Lote 7, cada paso medido con el evaluador oficial antes de aplicarlo):
+- `ts_rank_cd` → `ts_rank` (bug #66): con una consulta OR, `ts_rank_cd` enterraba las órdenes
+  cortas del historial. Híbrida: hit@5 0.690 → 0.746.
+- Búsqueda sin tildes (bug #67): el historial está escrito a mano sin tildes ("valvulas",
+  "caudalimetro") y el diccionario `spanish` no las quita. Configuración propia `es_sin_tildes`
+  (`spanish` + `unaccent`). Full-text: hit@5 0.817 → 0.831, recall@5 0.688 → 0.707.
+- `nomic-embed-text` → `bge-m3` (bug #68): con nomic la mitad semántica restaba (la híbrida quedaba
+  debajo del full-text solo); con bge-m3, multilingüe y el que usan las demos de la cátedra, la
+  híbrida le gana a BM25 en hit@5, recall@5 y mrr. El corpus va precalculado en el repo
+  (`datos/embeddings_corpus.npz`); en vivo solo se embebe la consulta (0.45 s de mediana en CPU).
+- Contextual chunking (módulo 2.2, mismo formato que `planta_kit.rag` de la cátedra): el vector de
+  cada fragmento lleva "Documento › Sección" adelante (`indexar.texto_para_embeber`), así se
+  entiende solo. recall@5 0.711 → 0.725 y distractor@3 0.014 → 0, el resto igual. La columna
+  `embedding_clave` (modelo + texto embebido) hace que una base ya indexada se re-embeba sola si
+  cambia el modelo o lo que se embebe.
+- No se ajustaron los pesos del RRF, para no sobreajustar a las mismas 71 preguntas con que se evalúa.
 - Distractores: la Rev. C (no vigente) no aparece en ninguna búsqueda, por el filtro duro. El 0.014
   que queda es una sección vigente del documento correcto pero equivocada.
+- Lo más flojo sigue siendo `historial` (hit@5 0.64 contra 0.82 de BM25): las órdenes se escriben
+  con abreviaturas propias ("B2", "bba", "fa") que ninguna de las dos mitades resuelve.
 
 ## Velocidad y fiabilidad (Lote 6)
 
@@ -327,6 +341,16 @@ python -m evaluacion.latencias <corrida>   # whisper, cola, primer mensaje, acus
 pip install -e ".[dev]"
 pytest
 ```
+
+Los tests no necesitan Docker ni la planta levantada. Los que comparan contra casos reales de la
+cátedra (`academia2026-tp/datos/documentos/contrato/cierres_ejemplo.json`) se saltean solos si
+ese repo no está en la carpeta de al lado.
+
+**CI** (`.github/workflows/ci.yml`): en cada push y cada PR, GitHub Actions corre los mismos
+comandos con Python 3.11 (la versión de la imagen del agente), con `academia2026-tp` al lado para
+que corran todos los tests. Las actions van fijadas por commit. `ruff check` corre como paso
+informativo: muestra los avisos de estilo pero no frena la CI. El corrector oficial y
+`evaluacion/verificar_entrega2.py` quedan afuera porque necesitan la planta simulada y 4 CPU.
 
 ## Resultados del corrector automático
 

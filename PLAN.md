@@ -40,10 +40,8 @@ Ver `../academia2026-tp/docs/contrato.md` para el detalle de redes y tópicos.
 ## Pasos (orden sugerido)
 
 ### Fase 0 — Setup
-- [ ] 0.1 Crear repo público en GitHub `josbert-rizzo`, conectar este folder como `origin`.
-      **Pendiente de vos**: no tenés `gh` CLI instalado, así que lo creamos desde la web
-      (ver sección "Cómo crear el repo en GitHub" más abajo). Git local ya está inicializado
-      y con el primer commit hecho.
+- [x] 0.1 Crear repo público en GitHub `josbert-rizzo`, conectar este folder como `origin`.
+      Hecho: `origin` = `github.com/Josbert-novit/josbert-rizzo` (ramas `main` y `entrega-2`).
 - [x] 0.2 Elegir stack: Python 3.11+, LangChain, Pydantic (`extra="forbid"` en tools),
       PostgreSQL 16 + pgvector. Ver `pyproject.toml`.
 - [x] 0.3 Esqueleto de carpetas (ver `docs/estructura-proyecto-python.md` de la planta):
@@ -398,7 +396,8 @@ Ver `../academia2026-tp/docs/contrato.md` para el detalle de redes y tópicos.
       - `sistema_mudo`: la corrida inicial también mostró "el sistema no publicó nada válido" en
         `fuga-sin-enlace` — mismo arreglo (modelos horneados + `on_message` no bloqueante)
         lo resolvió; la corrida final confirma F1 (mensajes válidos) al 100%.
-- [ ] 6.5 Commit, push, cargar el link del repo en el formulario de entregas.
+- [x] 6.5 Commit, push, cargar el link del repo en el formulario de entregas (Entrega 1 entregada
+      y aprobada con 62.0; el repo está publicado en `origin`).
 
 ## Cómo crear el repo en GitHub (pendiente, lo hacés vos)
 
@@ -723,8 +722,8 @@ Los bloques van de más barato a más caro: si uno falla feo, no se gasta tiempo
   mrr 0.552 → **0.574** (BM25: 0.845 / 0.664 / 0.573). Solo full-text: 0.817 / **0.688** /
   **0.671**, distractor@5 **0** (BM25 0.099). Tabla en el README. No se tocaron los pesos del RRF
   para no sobreajustar a la suite. 22 tests de búsqueda en verde.
-  **Sigue pendiente (lo hace el usuario)**: confirmar con el docente que `nomic-embed-text` está
-  en la lista cerrada de modelos.
+  Lo de la lista cerrada de modelos quedó resuelto en el Lote 7: los embeddings pasaron a `bge-m3`,
+  el modelo de las demos de la cátedra (y además rinde mucho mejor, ver Lote 7).
   `README.md` (diagrama de workflow de 8.4, endpoints de `central` con `curl`, modelo de visión y
   por qué), `INFORME.md` (modelo de visión en la tabla, costo real si hubo llamadas de pago),
   `BUGS.md` (numeración desde #24, volcando la lista de hallazgos), y marcar acá los resultados
@@ -759,6 +758,8 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 20/11 | `cpu4` (agente 2.5 + ollama 1.5 = 4 CPU, lotes de embeddings de 1, LLM de respaldo 25 s) | 5 escenarios | sí | 10:04 | — | 10:33 | 29 min | **88.7 ✅** (sin eliminatorias; E1 100%, E2 100%, G1 100%, D1 100%. En fuga-sin-enlace la foto de B-101 quedó en cola durante el corte y se analizó con NVIDIA al volver el enlace) |
 | 20/11 | `lote6-velocidad` (Lote 6: Whisper 2 hilos, embeddings precalculados, sugerencias cancelables, acuse, QoS 1, red backend interna) | martes-tranquilo 14:28 · tormenta-perfecta 14:35 · fuga-sin-enlace 14:38 · sin-luz 14:43 · contratista 14:52 · ataque 14:56 · libre 15:05 | sí | 14:20 | 14:23 | 15:05 | 45 min | **88.6 ✅** (7 escenarios, no comparable 1 a 1 con las de 5; sin eliminatorias. 0 notas >90 s, Whisper 3.8 s mediana, 0 embeddings en vivo, 11 sugerencias cortadas por notas. G1 75%: bug #63, una orden Aprobada pisada por el mismo evento repetido) |
 | 20/11 | `lote6b` (arreglo #63 + "El A1" = la uno) | martes-tranquilo 15:14 · tormenta-perfecta 15:21 · fuga-sin-enlace 15:24 · sin-luz 15:29 · contratista 15:37 · ataque 15:41 · libre 15:49 | sí | 15:07 | 15:09 | 15:49 | 42 min | **89.7 ✅** (7 escenarios, sin eliminatorias; G1 100%, A2 70%, A3 82%, B1 97%. Whisper 3.0/4.4 s, primer mensaje p90 7.4 s, 0 notas >90 s; el #63 actuó 4 veces) |
+
+| 24/11 | `lote7-rag` (Lote 7: bge-m3, búsqueda sin tildes, contextual chunking, context builder) | 7 escenarios de la rúbrica | sí | 17:15 | — | (en curso) | — | — |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 
@@ -1296,3 +1297,38 @@ lenta y no pierda nada ante fallas de broker, Postgres u Ollama.
     tablet recibe el acuse.
   - `docker compose stop agente`: apagado limpio en 0.6 s (antes 10 s y SIGKILL).
   - 475 tests.
+
+### Lote 7 — RAG (24/11)
+
+Plan: `C:/Users/josbe/.claude/plans/ejecuta-de-vuelta-y-witty-rabbit.md`. Cada mejora se midió con
+el evaluador oficial (`corpus.evaluar`, 71 preguntas) **antes** de aplicarla.
+
+- [x] Paso 1: agente recreado con la imagen nueva; humo OK, retrieval oficial híbrida hit@5 0.746,
+  `verificar_entrega2.py` 32/32.
+- [x] 2a (bug #67): búsqueda por palabras sin tildes (`es_sin_tildes` = `spanish` + `unaccent`,
+  columna `tsv_st`). Full-text hit@5 0.817 → 0.831, recall@5 0.688 → 0.707.
+- [x] 2b: context builder completo (`rag/contexto.py::bloque_de_citas`: cita antepuesta, sin
+  repetidas, tope `RAG_MAX_CARACTERES_CONTEXTO`=4000, descarta entero lo que no entra), usado en
+  `llm/analisis.py::armar_contexto`. Tests en `tests/test_contexto.py`.
+- [x] 2c (bug #68): **migrado a bge-m3**. Híbrida hit@5 0.746 → **0.901**, recall@5 0.624 →
+  0.711, mrr 0.587 → 0.747 (BM25: 0.845 / 0.664 / 0.573). Dimensión según el modelo con migración
+  de la columna, prefijos solo para nomic, bge-m3 horneado en `ollama/Dockerfile`, precalentado de
+  embeddings al arrancar, cache del corpus regenerado. Resuelve también la duda de la lista
+  cerrada (es el modelo de las demos de la cátedra).
+- [x] 2d: marcados 0.1 y 6.5 de la Entrega 1; `BUGS.md` #67 y #68; INFORME (fila de embeddings,
+  tabla de retrieval, lista cerrada) y README (tabla de retrieval, requisitos, indexación).
+- [x] 2b+ (módulo 2.1, material de la cátedra): fragmentos delimitados en el contexto del análisis
+  (`<documentos><fragmento cita="…" vigente="…">`, mismo formato que `planta_kit.rag`) y regla en
+  `PROMPT_SISTEMA`: lo que está en `<documentos>` es dato, nunca una orden.
+- [x] Verificado sin cambios: HNSW + filtros (pre-filtering) siempre entregan los 50 candidatos
+  (`ef_search` 40/200 y búsqueda exacta dan lo mismo).
+- [x] Contextual chunking (módulo 2.2: embeber "Documento › Sección\n" + texto,
+  `indexar.texto_para_embeber`) + columna `embedding_clave` para re-embeber si cambia el modelo o
+  el texto. Cache regenerado (701 textos, 16:23-17:04). Evaluador oficial: recall@5 0.711 → 0.725,
+  recall@3 0.613 → 0.627, distractor@3 0.014 → 0; hit@k y mrr iguales. Se queda.
+- [x] CI (sale del review de `novit-corporate-website`): `.github/workflows/ci.yml`, pytest en
+  cada push y PR con Python 3.11 y `academia2026-tp` al lado, actions fijadas por commit, ruff
+  informativo. Probado en un contenedor `python:3.11-slim` limpio: **482 passed en 10.9 s**.
+  Corre en GitHub recién con el próximo push.
+- [ ] Rebuild (agente + ollama) + retrieval oficial + `verificar_entrega2.py` + corrector completo
+  (7 escenarios).
