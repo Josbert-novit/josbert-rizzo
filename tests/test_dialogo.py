@@ -288,3 +288,33 @@ def test_desambiguacion_que_nunca_resuelve_no_queda_en_loop_infinito():
     assert estado.parte.filas[0].ambiguo is False
     assert estado.parte.filas[0].candidatos == []
     assert "revisar a mano" in estado.parte.filas[0].observacion
+
+
+def _fila_bomba(variable: str, valor: float | None) -> FilaParteInterna:
+    return FilaParteInterna(
+        tag_dicho="la bomba", tag=None, ambiguo=True, candidatos=["B-101", "B-102", "B-103"],
+        variable=variable, valor=valor, hora=AHORA,
+    )
+
+
+def test_elegir_equipo_resuelve_las_otras_filas_de_la_misma_mencion():
+    # Lote 8 (lote6b, tormenta NOTA-00013): "la bomba está en 1620 de descarga, hace un golpeteo"
+    # preguntaba dos veces "¿a cuál equipo te referís con 'la bomba'?".
+    estado = EstadoDialogo(parte=_parte_con([_fila_bomba("presion_descarga_local", 1620.0),
+                                             _fila_bomba("ruido", None)]), fila_en_pregunta=0)
+    resolver = ResolverFalso(Resolucion(ResultadoResolucion.resuelto, tag="B-102"))
+
+    procesar_respuesta(estado, "la dos", ExtractorFalso([]), resolver, VerificadorRangoFalso())
+
+    assert [f.tag for f in estado.parte.filas] == ["B-102", "B-102"]
+    assert construir_mensaje(estado).pantalla.opciones == []  # la próxima es "¿confirmás todo?"
+
+
+def test_dos_lecturas_de_la_misma_variable_son_dos_bombas():
+    estado = EstadoDialogo(parte=_parte_con([_fila_bomba("presion_descarga_local", 112.0),
+                                             _fila_bomba("presion_descarga_local", 1620.0)]), fila_en_pregunta=0)
+    resolver = ResolverFalso(Resolucion(ResultadoResolucion.resuelto, tag="B-101"))
+
+    procesar_respuesta(estado, "la uno", ExtractorFalso([]), resolver, VerificadorRangoFalso())
+
+    assert [f.tag for f in estado.parte.filas] == ["B-101", None]

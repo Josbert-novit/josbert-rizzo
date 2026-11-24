@@ -160,7 +160,7 @@ class Diagnostico(BaseModel):
 # Lote 3 (H10): medido en el corrector, con 700 tokens / 120 s cada llamada llegaba al tope
 # (~2 min) y bloqueaba Ollama para las notas. Más corto: si no alcanza, cae a inspección.
 MAX_TOKENS_SALIDA_ANALISIS = 450
-CONTEXTO_ANALISIS_TOKENS = 4096
+CONTEXTO_ANALISIS_TOKENS = config.ollama_num_ctx  # el mismo de todas las llamadas (Lote 8)
 TIMEOUT_LLAMADA_ANALISIS_S = 90.0  # 2 intentos (11.2) × 90 s < `config.timeout_orden_s` (280)
 
 

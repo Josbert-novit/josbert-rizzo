@@ -12,6 +12,7 @@ USD, pero sí tiene sentido reportar cuántos tokens/pasos insume interpretar un
 """
 
 import threading
+import time
 from dataclasses import dataclass
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -36,6 +37,7 @@ class TrabajoUrgente:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._en_curso = 0
+        self._libre_desde = time.monotonic()
 
     def __enter__(self) -> "TrabajoUrgente":
         with self._lock:
@@ -45,10 +47,19 @@ class TrabajoUrgente:
     def __exit__(self, *_exc) -> None:
         with self._lock:
             self._en_curso -= 1
+            if self._en_curso == 0:
+                self._libre_desde = time.monotonic()
 
     def activo(self) -> bool:
         with self._lock:
             return self._en_curso > 0
+
+    def quieto_hace(self) -> float:
+        """Segundos desde que terminó el último trabajo urgente (0 si hay uno en curso)."""
+        with self._lock:
+            if self._en_curso > 0:
+                return 0.0
+            return time.monotonic() - self._libre_desde
 
 
 trabajo_urgente = TrabajoUrgente()

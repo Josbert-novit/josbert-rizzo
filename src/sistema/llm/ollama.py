@@ -41,6 +41,8 @@ def chat_ollama(*, timeout_s: float, baja_prioridad: bool = False, **extra):
         "temperature": 0,
         "keep_alive": _keep_alive(),
         "client_kwargs": {"timeout": timeout_s},
+        # Mismo contexto en todas las llamadas: si cambia, Ollama recarga el modelo (Lote 8).
+        "num_ctx": config.ollama_num_ctx,
     }
     if config.ollama_hilos:
         opciones["num_thread"] = config.ollama_hilos

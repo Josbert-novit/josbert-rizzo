@@ -39,6 +39,24 @@ MAX_TURNOS_DIALOGO = 12
 NOTA_LOOP = "diálogo cortado por detección de loop (la misma pregunta se repetía): revisar a mano"
 
 
+def _elegir_equipo(parte: Parte, fila, tag: str) -> None:
+    """Pone el equipo elegido en la fila y en las otras filas de la misma mención ("la bomba" con
+    los mismos candidatos). Lote 8: antes se preguntaba una vez por fila, y "la bomba está en 1620
+    de descarga, hace un golpeteo" hacía la misma pregunta dos veces (lote6b, tormenta NOTA-00013):
+    una pregunta de más (A4b) y 10-13 s reales más de escenario. Solo si la variable es otra: un
+    equipo no tiene dos lecturas de la misma variable, así que dos "la bomba" con la misma variable
+    son dos bombas distintas."""
+    mencion, candidatos = fila.tag_dicho, list(fila.candidatos)
+    variables = {fila.variable}
+    fila.tag, fila.ambiguo, fila.candidatos = tag, False, []
+    for otra in parte.filas:
+        if (otra is not fila and otra.tag is None and otra.tag_dicho == mencion
+                and list(otra.candidatos) == candidatos and tag in candidatos
+                and otra.variable not in variables):
+            otra.tag, otra.ambiguo, otra.candidatos = tag, False, []
+            variables.add(otra.variable)
+
+
 def _es_confirmacion(texto: str) -> bool:
     normalizado = texto.strip().lower()
     if normalizado.startswith("no"):
@@ -202,7 +220,7 @@ def _respuesta_sin_llm(estado: EstadoDialogo, texto_respuesta: str) -> bool | No
         return None
     if respuesta.tipo == "elige":
         if fila is not None and fila.tag is None and respuesta.tag_elegido:
-            fila.tag, fila.ambiguo, fila.candidatos = respuesta.tag_elegido, False, []
+            _elegir_equipo(estado.parte, fila, respuesta.tag_elegido)
             return False
         return None
     if respuesta.tipo == "corrige":
@@ -262,9 +280,7 @@ def procesar_respuesta(
     if fila.tag is None and fila.candidatos:
         resolucion = resolver.resolver(texto_respuesta)
         if resolucion.tag:
-            fila.tag = resolucion.tag
-            fila.ambiguo = False
-            fila.candidatos = []
+            _elegir_equipo(estado.parte, fila, resolucion.tag)
             return False
         # No se resolvió de nuevo (ver BUGS.md #15: una respuesta mal interpretada puede quedar
         # ambigua para siempre). Sin este tope, al no haber ningún llamado al LLM en esta rama,

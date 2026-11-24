@@ -1,7 +1,7 @@
 [project]
 name = "josbert-rizzo-tp-academia"
 version = "0.1.0"
-description = "Sistema de mantenimiento asistido para la planta de inyección PIA-3 (TP Academia Novit 2026, Entrega 1)"
+description = "Sistema de mantenimiento asistido para la planta de inyección PIA-3 (TP Academia Novit 2026, Entregas 1 y 2)"
 requires-python = ">=3.11"
 dependencies = [
     "planta_contrato @ git+https://github.com/NovitSoftware/academia2026-tp#subdirectory=contrato",

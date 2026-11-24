@@ -194,6 +194,7 @@ def test_latido_sobrevive_a_un_error_y_no_informa_cero_si_postgres_falla(monkeyp
     monkeypatch.setattr(agente, "_contar_pendientes", lambda: next(pendientes))
     monkeypatch.setattr(config, "intervalo_sondeo_estado_s", 0.01)
     monkeypatch.setattr(config, "intervalo_latido_s", 0.0)
+    monkeypatch.setattr(config, "espera_primer_latido_s", 0.0)
     cliente = _ClienteFalso()
     agente.publicar_estado(cliente, parar)
     latidos = [json.loads(p) for t, p, q in cliente.publicados]
@@ -407,3 +408,105 @@ def test_el_a1_es_la_uno(texto, tag):
 
 def test_el_a_con_decimal_no_se_toca():
     assert normalizar_whisper("El A 1,3 de diferencial") == "El A 1,3 de diferencial"
+
+
+def test_todas_las_llamadas_a_qwen_usan_el_mismo_contexto():
+    # Lote 8: Ollama recarga el modelo cada vez que cambia `num_ctx`. El precalentado, la
+    # extracción y el cierre usaban el default (2048) y el análisis 4096: qwen se recargaba
+    # varias veces por escenario, encima de las notas.
+    from sistema.llm.analisis import CONTEXTO_ANALISIS_TOKENS
+
+    por_defecto = ollama_mod.chat_ollama(timeout_s=1.0)
+    assert por_defecto.num_ctx == CONTEXTO_ANALISIS_TOKENS
+    ollama_mod.soltar_baja_prioridad()
+
+
+def test_quieto_hace_cuenta_desde_el_ultimo_trabajo_urgente():
+    # Lote 8: la sugerencia espera un rato de quietud, no solo que no haya una nota en curso.
+    from sistema.llm.control import TrabajoUrgente
+
+    t = TrabajoUrgente()
+    with t:
+        assert t.quieto_hace() == 0.0
+        with t:
+            pass
+        assert t.quieto_hace() == 0.0  # sigue habiendo uno en curso
+    time.sleep(0.05)
+    assert t.quieto_hace() >= 0.05
+
+
+def test_sugerencia_espera_la_quietud(monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(config, "quietud_sugerencia_s", 3600.0)
+    monkeypatch.setattr(config, "espera_maxima_sugerencia_s", 0.0)
+    monkeypatch.setattr(agente, "procesar_evento_escalado", lambda *a, **k: llamadas.append(a))
+    agente._sugerencia_llm(None, type("E", (), {"id": "EVT-X"})())
+    assert llamadas == []  # el sistema no estuvo quieto el tiempo pedido: no usa Ollama
+
+
+def test_sin_sugerencia_llm_no_encola(monkeypatch):
+    encolados = []
+    monkeypatch.setattr(config, "sugerencia_llm", False)
+    monkeypatch.setattr(agente, "_orden_inmediata_best_effort", lambda evento: None)
+    monkeypatch.setattr(agente, "_enviar_con_arranque", lambda *a, **k: encolados.append(a))
+    agente._procesar_evento_escalado_con_corte(None, type("E", (), {"id": "EVT-X"})())
+    assert encolados == []
+
+
+# --- Lote 8: preguntas de más por manías de Whisper (lote6b) ---------------------------------
+
+def test_cero_nueve_con_cero_adelante_no_pregunta():
+    # martes NOTA-00010: "El filtro B medio 09 de diferencial" preguntaba "¿es 0.9?".
+    filas = PARSER.parsear("El filtro B medio 09 de diferencial. El pulmón está en 5 metros.", AHORA, [])
+    assert [(f.tag, f.valor, f.ambiguedad_valor) for f in filas] == [("F-201B", 0.9, False), ("TK-301", 5.0, False)]
+
+
+def test_filtro_ve_es_el_filtro_b():
+    # ataque NOTA-00008: "el filtro ve medio 0,9" preguntaba "¿a cuál filtro?" y el borrador ponía
+    # el diferencial en B-101.
+    texto = ("Este, la de la punta está en 111 kilos de descarga el rodamiento medio 61 grados con una "
+             "pistola, además el filtro ve medio 0,9 de diferencial, el pulmón está en 5 metros.")
+    filas = PARSER.parsear(texto, AHORA, [])
+    assert filas is not None
+    assert ("F-201B", "presion_diferencial", 0.9) in [(f.tag, f.variable, f.valor) for f in filas]
+    assert not any(f.ambiguo for f in filas)
+
+
+def test_horas_y_decimales_no_se_tocan():
+    assert normalizar_whisper("a las 09:30 me dio 0,9") == "a las 09:30 me dio 0,9"
+    assert normalizar_whisper("el filtro vez pasada") == "el filtro vez pasada"
+
+
+def _latir_una_vez(monkeypatch, espera_s: float) -> tuple[list, float]:
+    parar = threading.Event()
+
+    def enlace(timeout=2.0):
+        parar.set()
+        return True
+
+    monkeypatch.setattr(agente, "enlace_arriba", enlace)
+    monkeypatch.setattr(agente, "_contar_pendientes", lambda: 0)
+    monkeypatch.setattr(config, "espera_primer_latido_s", espera_s)
+    cliente = _ClienteFalso()
+    inicio = time.monotonic()
+    agente.publicar_estado(cliente, parar)
+    return cliente.publicados, time.monotonic() - inicio
+
+
+def test_primer_latido_espera_el_arranque_completo(monkeypatch):
+    # Lote 8: el corrector arranca el reloj con el primer latido; si sale antes de precalentar
+    # Ollama, las primeras notas compiten con la carga de los modelos.
+    agente._arranque_listo.clear()
+    threading.Timer(0.3, agente._arranque_listo.set).start()
+    publicados, tardo = _latir_una_vez(monkeypatch, espera_s=30.0)
+    assert len(publicados) == 1
+    assert 0.25 <= tardo < 5.0
+
+
+def test_primer_latido_sale_al_tope_aunque_no_termine_el_arranque(monkeypatch):
+    # Bug #25: no latir por minutos dejaba al corrector sin primer latido.
+    agente._arranque_listo.clear()
+    publicados, tardo = _latir_una_vez(monkeypatch, espera_s=0.2)
+    assert len(publicados) == 1
+    assert tardo < 3.0
+    agente._arranque_listo.set()

@@ -75,6 +75,12 @@ traductor_fallas = TraductorFallas(http)
 # catálogo de la planta, Whisper cargado) corre en paralelo. Una nota que llega antes espera esto.
 _preparado = threading.Event()
 
+# Lote 8: arranque completo (lo de arriba + Ollama precalentado + corpus indexado). El primer latido
+# lo espera, con tope `espera_primer_latido_s`: el corrector arranca el reloj con el primer latido,
+# y en `lote7-rag` las primeras notas de cada escenario competían con el precalentado de Ollama
+# (hasta 27 s) y el indexado: Whisper 9-15 s en vez de 3, primera respuesta en la tablet a 25-31 s.
+_arranque_listo = threading.Event()
+
 
 def _urgente(funcion):
     """Marca el trabajo como urgente mientras corre: pausa la indexación de embeddings en segundo
@@ -661,11 +667,13 @@ def _sugerencia_llm(client: mqtt.Client, evento: EventoSistema) -> None:
     (`_urgente` → `cancelar_baja_prioridad`) y la sugerencia se vuelve a intentar cuando el sistema
     se desocupe (hasta 3 veces). Antes, una vez arrancado, ocupaba Ollama hasta 90 s."""
     for intento in range(1, 4):
+        # Lote 8: no alcanza con que no haya una nota procesándose — entre la pregunta a la tablet
+        # y la respuesta del operador no hay trabajo urgente, pero la respuesta llega en segundos.
         esperado = 0.0
-        while trabajo_urgente.activo() and esperado < config.espera_maxima_sugerencia_s:
+        while trabajo_urgente.quieto_hace() < config.quietud_sugerencia_s and esperado < config.espera_maxima_sugerencia_s:
             time.sleep(1.0)
             esperado += 1.0
-        if trabajo_urgente.activo():
+        if trabajo_urgente.quieto_hace() < config.quietud_sugerencia_s:
             log.info("evento %s: sin sugerencia del LLM (el sistema siguió ocupado con notas)", evento.id)
             return
         generacion = generacion_cancelacion()
@@ -710,6 +718,8 @@ def _procesar_evento_escalado_con_corte(client: mqtt.Client, evento: EventoSiste
     Lote 3: primero la orden inmediata (hilo propio, segundos, sin LLM); la sugerencia del LLM va
     a su pool con menor prioridad."""
     threading.Thread(target=_orden_inmediata_best_effort, args=(evento,), daemon=True).start()
+    if not config.sugerencia_llm:
+        return
     global _sugerencias_pendientes
     with _lock_sugerencias:
         if _sugerencias_pendientes >= MAX_SUGERENCIAS_PENDIENTES:
@@ -865,6 +875,14 @@ def publicar_estado(client: mqtt.Client, parar: threading.Event) -> None:
     ultimo: tuple[bool, int] | None = None
     ultimo_envio = 0.0
     pendientes_conocidos = 0
+    # Lote 8: el primer latido espera el arranque completo, con tope (el bug #25 era no latir por
+    # minutos). Mientras espera, el healthcheck sigue viendo al agente vivo.
+    limite = time.monotonic() + config.espera_primer_latido_s
+    while not _arranque_listo.is_set() and time.monotonic() < limite and not parar.is_set():
+        _marcar_vivo()
+        _arranque_listo.wait(1.0)
+    if not _arranque_listo.is_set():
+        log.warning("primer latido sin terminar el arranque (tope de %.0f s)", config.espera_primer_latido_s)
     while not parar.is_set():
         try:
             enlace_ok = enlace_arriba(timeout=2.0)
@@ -1090,8 +1108,17 @@ def _preparar(parar: threading.Event) -> None:
             log.exception("no se pudo precargar Whisper (se carga con la primera nota)")
     finally:
         _preparado.set()
-    threading.Thread(target=_precalentar_ollama, daemon=True, name="ollama-calentar").start()
-    threading.Thread(target=_indexar_corpus_en_segundo_plano, daemon=True, name="indexar").start()
+    inicio = time.monotonic()
+    hilos = [
+        threading.Thread(target=_precalentar_ollama, daemon=True, name="ollama-calentar"),
+        threading.Thread(target=_indexar_corpus_en_segundo_plano, daemon=True, name="indexar"),
+    ]
+    for hilo in hilos:
+        hilo.start()
+    for hilo in hilos:
+        hilo.join()
+    _arranque_listo.set()
+    log.info("arranque completo (Ollama precalentado, corpus indexado) en %.1f s más", time.monotonic() - inicio)
 
 
 def _conectar_broker(client: mqtt.Client, parar: threading.Event) -> None:

@@ -44,6 +44,14 @@ _MANIAS_WHISPER: list[tuple[re.Pattern, str]] = [
     # Lote 6 (C4): "el filtro Bmedio 10", "filtro BME10", "filtro B-Mario 10" = "filtro B me dio".
     # Solo si sigue un número (la lectura), para no tocar "el filtro B" a secas.
     (re.compile(r"\bfiltro ?([AB])[- ]?(?:medi[oó]|mario|me)\s*(?=\d)", re.IGNORECASE), r"filtro \1 me dio "),
+    # Lote 8: "el filtro ve medio 0,9" = "filtro B": Whisper escribe la letra como suena (be/ve).
+    # Terminaba en "¿a cuál filtro?" (pregunta de más, A4b) y el borrador ponía el diferencial en
+    # la bomba anterior (lote6b, ataque NOTA-00008).
+    (re.compile(r"\bfiltro (?:ve|be|v)\b(?![-'])", re.IGNORECASE), "filtro B"),
+    # Lote 8: "me dio 09 de diferencial" = "cero nueve" = 0,9. Con el cero adelante no es
+    # ambiguo (no es "nueve" ni "noventa"), pero se leía 9 y se preguntaba "¿es 0.9?" (lote6b,
+    # martes NOTA-00010). No toca horas (09:30) ni decimales (0,9 / 09,5).
+    (re.compile(r"(?<![\d:.,])0([1-9])(?![\d:.,])"), r"0,\1"),
     # Lote 6 (C4): "El A1 está disparada", "En A1, el rodamiento..." = "la uno": en las corridas
     # guardadas fue "la uno" las 17 veces (iba al LLM, que se cortaba a los 25 s y la nota quedaba
     # sin borrador). No toca un decimal ("el A 1,3").

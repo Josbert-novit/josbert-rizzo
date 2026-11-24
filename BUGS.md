@@ -1031,3 +1031,64 @@ para nomic. El precalentado del agente carga también el modelo de embeddings (l
 en frío tardó 9 s). Cache del corpus regenerado con bge-m3 (`indexar --exportar-cache`).
 **Costo**: imagen de Ollama ~0.9 GB más grande; embeber el corpus entero en esta CPU tarda ~30 min,
 por eso va precalculado en el repo.
+
+### 69. qwen se recargaba varias veces por escenario: `num_ctx` distinto por llamada
+
+**Dónde**: `src/sistema/llm/ollama.py::chat_ollama`, `src/sistema/config.py` (`ollama_num_ctx`),
+`src/sistema/llm/analisis.py` (`CONTEXTO_ANALISIS_TOKENS`).
+**Bug**: el precalentado del agente, la extracción y el cierre llamaban a qwen con el contexto por
+defecto de Ollama (2048) y el análisis con `num_ctx=4096`. Ollama 0.5.4 recarga el modelo cada vez
+que cambia el contexto. En los logs de `lote6b`, qwen se cargó 4 veces en tormenta-perfecta y 2 en
+sin-luz, ataque y contratista (1.3-2.5 s de CPU de Ollama cada vez, a veces en medio de una nota).
+**Arreglo**: `chat_ollama` pone `num_ctx=config.ollama_num_ctx` (4096, variable `OLLAMA_NUM_CTX`)
+en todas las llamadas, y el análisis usa el mismo valor. Test en `tests/test_lote6.py`.
+
+### 70. La sugerencia del análisis arrancaba en el hueco entre la pregunta y la respuesta
+
+**Dónde**: `src/sistema/agente.py::_sugerencia_llm`, `src/sistema/llm/control.py::TrabajoUrgente`.
+**Bug**: la sugerencia con LLM (nunca se publica) esperaba solo a que no hubiera una nota
+*procesándose*. Eso termina apenas la nota manda su pregunta a la tablet. La sugerencia arrancaba
+ahí y la cortaba la respuesta del operador, que llega unos segundos después. En `lote6b`, las 11
+notas con una sugerencia en curso tuvieron Whisper de 4.3 s de mediana contra 2.9 s de las otras 71.
+**Arreglo**: `TrabajoUrgente.quieto_hace()` y la sugerencia espera `QUIETUD_SUGERENCIA_S` (15 s)
+sin trabajo urgente. `SUGERENCIA_LLM=0` la apaga del todo. Tests en `tests/test_lote6.py`.
+
+### 71. La misma pregunta de equipo se repetía una vez por fila
+
+**Dónde**: `src/sistema/procesamiento/dialogo.py` (`_elegir_equipo`).
+**Bug**: "la bomba está en 1620 de descarga, hace un golpeteo metálico" deja dos filas sin equipo
+con la misma mención. La respuesta del operador se aplicaba solo a la fila preguntada, y se volvía
+a preguntar "¿a cuál equipo te referís con 'la bomba'?" por la segunda (`lote6b`, tormenta
+NOTA-00013). Es una pregunta de más (A4b) y 10-13 s reales más de escenario.
+**Arreglo**: la elección se aplica también a las otras filas con la misma mención y los mismos
+candidatos, si la variable es otra (dos lecturas de la misma variable son dos equipos). Tests en
+`tests/test_dialogo.py`.
+
+### 72. Preguntas de más por dos manías de Whisper: "filtro ve" y "09"
+
+**Dónde**: `src/sistema/procesamiento/parser_notas.py` (`_MANIAS_WHISPER`).
+**Bug**: (a) Whisper escribe la letra B como suena: "el filtro ve medio 0,9". El parser no lo
+reconocía, preguntaba "¿a cuál filtro?" y el borrador ponía el diferencial en la bomba anterior
+(`lote6b`, ataque NOTA-00008). (b) "cero nueve de diferencial" sale "09"; se leía 9 y se preguntaba
+"¿es 0.9?", aunque con el cero adelante no es ambiguo (`lote6b`, martes NOTA-00010).
+**Arreglo**: "filtro ve/be/v" → "filtro B"; un número de dos dígitos con cero adelante → "0,N" (no
+toca horas ni decimales). `evaluar_parser` sobre 946 notas reales: borradores perfectos 782 → 789,
+preguntas 104 → 96. Aparece 1 falla nueva (g1-tarea-estandar NOTA-00013), pero ese borrador ya
+estaba mal: Whisper escribió "filtro a medio 01" por "filtro B me dio uno uno". Antes la pregunta
+"¿es 0.4?" del otro valor lo tapaba; el operador lo corrige igual al confirmar. Tests en
+`tests/test_lote6.py`.
+
+### 73. Las primeras notas de cada escenario competían con el arranque
+
+**Dónde**: `src/sistema/agente.py` (`_arranque_listo`, `_preparar`, `publicar_estado`),
+`src/sistema/config.py` (`espera_primer_latido_s`).
+**Bug**: el corrector arranca el reloj del escenario con el primer latido del sistema, y el agente
+latía apenas se conectaba (Lote 6, B7). Las primeras notas llegaban mientras Ollama se precalentaba
+y se indexaba el corpus. Con bge-m3 (Lote 7) el precalentado tardó hasta 27 s: en `lote7-rag`,
+Whisper de las primeras notas 9-15 s (contra ~3 s), primera respuesta en la tablet a 25-31 s, p90
+de primer mensaje 24.9 s contra 7.4 s en `lote6b`.
+**Arreglo**: evento `_arranque_listo` (Whisper precargado + Ollama precalentado + corpus indexado).
+El primer latido lo espera con tope de 45 s (`ESPERA_PRIMER_LATIDO_S`): se mantiene la protección
+del bug #25, que era no latir durante minutos. El corrector espera hasta 180 s el primer latido y
+F2 tolera 60 s entre latidos. Mientras espera, el agente se sigue marcando vivo para el
+healthcheck. Tests en `tests/test_lote6.py`.

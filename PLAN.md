@@ -759,7 +759,7 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 20/11 | `lote6-velocidad` (Lote 6: Whisper 2 hilos, embeddings precalculados, sugerencias cancelables, acuse, QoS 1, red backend interna) | martes-tranquilo 14:28 · tormenta-perfecta 14:35 · fuga-sin-enlace 14:38 · sin-luz 14:43 · contratista 14:52 · ataque 14:56 · libre 15:05 | sí | 14:20 | 14:23 | 15:05 | 45 min | **88.6 ✅** (7 escenarios, no comparable 1 a 1 con las de 5; sin eliminatorias. 0 notas >90 s, Whisper 3.8 s mediana, 0 embeddings en vivo, 11 sugerencias cortadas por notas. G1 75%: bug #63, una orden Aprobada pisada por el mismo evento repetido) |
 | 20/11 | `lote6b` (arreglo #63 + "El A1" = la uno) | martes-tranquilo 15:14 · tormenta-perfecta 15:21 · fuga-sin-enlace 15:24 · sin-luz 15:29 · contratista 15:37 · ataque 15:41 · libre 15:49 | sí | 15:07 | 15:09 | 15:49 | 42 min | **89.7 ✅** (7 escenarios, sin eliminatorias; G1 100%, A2 70%, A3 82%, B1 97%. Whisper 3.0/4.4 s, primer mensaje p90 7.4 s, 0 notas >90 s; el #63 actuó 4 veces) |
 
-| 24/11 | `lote7-rag` (Lote 7: bge-m3, búsqueda sin tildes, contextual chunking, context builder) | 7 escenarios de la rúbrica | sí | 17:15 | — | (en curso) | — | — |
+| 24/11 | `lote7-rag` (Lote 7: bge-m3, búsqueda sin tildes, contextual chunking, context builder) | martes-tranquilo 17:16 · tormenta-perfecta 17:24 · fuga-sin-enlace 17:27 · sin-luz 17:33 · contratista 17:41 · ataque 17:45 · libre 17:53 | sí | 17:09 | 17:12 | 17:53 | 44 min | **89.6 ✅** (sin eliminatorias; igual a `lote6b` 89.7 dentro del ruido. A2 71%, A3 80%, B1 98%, D1 100%, D2 75%, E1-E3 100%, G1 100%, F3 0% como siempre. La búsqueda con bge-m3 anduvo en vivo, embed de la consulta en 1-2 s; las sugerencias del LLM se cortaron por notas, como está diseñado) |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 
@@ -1330,5 +1330,31 @@ el evaluador oficial (`corpus.evaluar`, 71 preguntas) **antes** de aplicarla.
   cada push y PR con Python 3.11 y `academia2026-tp` al lado, actions fijadas por commit, ruff
   informativo. Probado en un contenedor `python:3.11-slim` limpio: **482 passed en 10.9 s**.
   Corre en GitHub recién con el próximo push.
-- [ ] Rebuild (agente + ollama) + retrieval oficial + `verificar_entrega2.py` + corrector completo
-  (7 escenarios).
+- [x] Rebuild (agente + ollama) + retrieval oficial + `verificar_entrega2.py` (32/32) + corrector
+  completo `lote7-rag` (7 escenarios, 17:09-17:53): **89.6/100, APRUEBA, sin eliminatorias**.
+- [ ] Propuesta pendiente: acelerar los embeddings (`num_thread` en `embeddings_ollama`, que hoy
+  no lo pasa; exportación incremental del cache; exportar sin el tope de 1.5 CPU). Medir antes
+  de aplicar.
+
+### Lote 8 — tiempo de ejecución (24/11)
+
+Medido sobre `lote6b` (42 min) y `lote7-rag` (44 min). El reloj del corrector frena a ×5 en cada
+evento hasta que el sistema pasa 5 s sin publicar y nadie espera respuesta en la tablet. De ~40 min,
+~20 son el operador contestando más esos 5 s de silencio, 7 son la gracia final (60 s × 7) y ~7 son
+procesamiento del sistema (Whisper 65 % de eso). El margen que depende del sistema es de 3 a 5 min,
+más una p90 pareja. `lote7-rag` empeoró la latencia: Whisper 4.1/8.7 s contra 3.0/4.4 s, primer
+mensaje p90 24.9 s contra 7.4 s.
+
+- [x] P1 (BUGS #69): un solo `num_ctx` (4096) para todas las llamadas a qwen; antes se recargaba
+  hasta 4 veces por escenario (2048 ↔ 4096).
+- [x] P2 (BUGS #70): la sugerencia del análisis espera 15 s de quietud (`QUIETUD_SUGERENCIA_S`);
+  `SUGERENCIA_LLM=0` la apaga. Con sugerencia en curso, Whisper 4.3 s contra 2.9 s.
+- [x] P4 (BUGS #71, #72): sin la pregunta de equipo repetida por fila; "filtro ve" = filtro B; "09"
+  = 0,9. `evaluar_parser` (946 notas): perfectas 782 → 789, preguntas 104 → 96.
+- [x] P5 (BUGS #73): el primer latido espera el arranque completo (Ollama precalentado + corpus
+  indexado), con tope de 45 s (`ESPERA_PRIMER_LATIDO_S`). En `lote7-rag` las primeras notas de
+  cada escenario tuvieron Whisper de 9-15 s.
+- [x] Auditoría E2: rótulos "(Entrega 1)" → "(Entregas 1 y 2)"; README con el servidor MCP y con la
+  decisión de redes de Postgres (decisión del usuario: documentar, no mover).
+- [ ] P3: Whisper beam 2/3 sin VAD con `evaluar_whisper.py` (17:55, en curso).
+- [ ] Rebuild + corrector completo (7 escenarios) con todo el Lote 8.

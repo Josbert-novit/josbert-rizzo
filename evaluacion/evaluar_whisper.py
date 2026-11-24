@@ -48,6 +48,9 @@ CONFIGS: dict[str, dict] = {
     "h2-b5-vad": {"cpu_threads": 2, "beam_size": 5, "vad_filter": True},
     "h2-b2-vad": {"cpu_threads": 2, "beam_size": 2, "vad_filter": True},
     "h2-b1-vad": {"cpu_threads": 2, "beam_size": 1, "vad_filter": True},
+    # Lote 8: el VAD pierde un "golpeteo" (14/19 contra 15/19); sin VAD, ¿cuánto da beam chico?
+    "h2-b2": {"cpu_threads": 2, "beam_size": 2, "vad_filter": False},
+    "h2-b3": {"cpu_threads": 2, "beam_size": 3, "vad_filter": False},
 }
 
 _SCRIPT_SIM = r"""

@@ -60,6 +60,11 @@ class Config:
     # trabar para siempre el pool que lo llamó.
     ollama_keep_alive = os.getenv("OLLAMA_KEEP_ALIVE_CLIENTE", "-1")
     ollama_hilos = int(os.getenv("OLLAMA_HILOS", "0")) or None
+    # Lote 8 (velocidad): un solo contexto para todas las llamadas a qwen. Ollama 0.5.4 recarga el
+    # modelo cada vez que cambia `num_ctx`: el precalentado, la extracción y el cierre iban con el
+    # default (2048) y el análisis con 4096, y en `lote6b` tormenta-perfecta qwen se cargó 4 veces
+    # (1.3-2.5 s de CPU cada una, encima de las notas). 4096 es lo que necesita el análisis.
+    ollama_num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
     timeout_extraccion_s = float(os.getenv("TIMEOUT_EXTRACCION_S", "25"))
     timeout_cierre_llm_s = float(os.getenv("TIMEOUT_CIERRE_LLM_S", "45"))
     timeout_embeddings_s = float(os.getenv("TIMEOUT_EMBEDDINGS_S", "30"))
@@ -71,8 +76,19 @@ class Config:
     # Lote 6 (B7): el agente se conecta y late enseguida; las notas que lleguen mientras termina de
     # prepararse (parser, Whisper) esperan hasta esto antes de procesarse igual.
     espera_preparacion_s = float(os.getenv("ESPERA_PREPARACION_S", "60"))
+    # Lote 8: el primer latido espera el arranque completo (Whisper, Ollama precalentado, corpus
+    # indexado) hasta este tope. El corrector espera hasta 180 s el primer latido para arrancar el
+    # reloj, y F2 tolera 60 s entre latidos (sin contar los cortes de luz).
+    espera_primer_latido_s = float(os.getenv("ESPERA_PRIMER_LATIDO_S", "45"))
     espera_cierre_s = float(os.getenv("ESPERA_CIERRE_S", "120"))
     espera_maxima_sugerencia_s = float(os.getenv("ESPERA_MAXIMA_SUGERENCIA_S", "600"))
+    # Lote 8 (velocidad): la sugerencia del LLM (nunca se publica) arranca recién después de
+    # `quietud_sugerencia_s` sin notas ni respuestas en curso. Antes arrancaba apenas la nota mandaba
+    # su pregunta a la tablet, en el hueco antes de que contestara el operador, y la cortaba la
+    # respuesta: en `lote6b`, las notas con una sugerencia en curso tuvieron Whisper de 4.3 s de
+    # mediana contra 2.9 s. `SUGERENCIA_LLM=0` la apaga del todo.
+    sugerencia_llm = os.getenv("SUGERENCIA_LLM", "1").lower() not in ("0", "false", "no")
+    quietud_sugerencia_s = float(os.getenv("QUIETUD_SUGERENCIA_S", "15"))
     intervalo_latido_s = float(os.getenv("INTERVALO_LATIDO_S", "30"))
     intervalo_sondeo_estado_s = float(os.getenv("INTERVALO_SONDEO_ESTADO_S", "2"))
     intervalo_reconciliacion_s = float(os.getenv("INTERVALO_RECONCILIACION_S", "5"))

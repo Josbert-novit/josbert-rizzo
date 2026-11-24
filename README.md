@@ -1,4 +1,4 @@
-# Sistema de mantenimiento — TP Academia Novit 2026 (Entrega 1)
+# Sistema de mantenimiento — TP Academia Novit 2026 (Entregas 1 y 2)
 
 Sistema que se conecta a la planta simulada [academia2026-tp](../academia2026-tp) para recibir
 notas de voz del operador, detectar anomalías y asistir al planificador en la aprobación de
@@ -20,6 +20,22 @@ notas de voz del operador, detectar anomalías y asistir al planificador en la a
 | **PC de planta** (`planta-lan`, label `academia.planta: pc`, sale solo por `enlace:3128`) | `agente` (MQTT, transcripción Whisper, detección, alerta S1-S4, diálogo con la tablet, reglas de aprobación, órdenes, cierres) y `ollama` (qwen2.5:1.5b para extracción/análisis/cierre, bge-m3 para el RAG) | Todo lo que puntúa en tiempo real o protege a las personas tiene que andar con el enlace caído (`fuga-sin-enlace`) |
 | **Red propia** (`backend`) | `postgres` (pgvector, diálogos, órdenes, cola de fotos) y `central` (interfaz HTTP del planificador, supervisor e inspector, puerto 8200) | Estado durable que sobrevive al corte de luz y una interfaz para las personas |
 | **Nube** (solo con el enlace arriba) | Visión NVIDIA NIM (`nvidia/nemotron-3.5-super-vl-120b-a12b`) para las fotos | No hay un modelo de visión que corra en CPU sin GPU. Sin enlace, la foto queda en cola y se analiza cuando vuelve; la alerta y la orden nunca esperan a la visión |
+
+**Por qué el agente está en dos redes y Postgres no lleva el label de planta.** El contrato
+(`docs/contrato.md`) dice que lo que corre en la PC de planta va solo en `planta-lan`. El agente
+está además en `backend` para hablar con Postgres. Es una decisión a propósito, y esto la acota:
+
+- `backend` es `internal: true`, sin salida a internet (BUGS #61). El agente sigue saliendo a
+  internet solo por `enlace:3128`: la red extra no saltea el enlace.
+- Postgres hace de **disco de la PC de planta**: diálogos en curso, órdenes y la cola de fotos
+  tienen que sobrevivir a que el agente se apague de golpe. Por eso no lleva `academia.planta: pc`:
+  en `sin-luz` el agente se corta, y al volver retoma desde Postgres sin perder ni duplicar
+  órdenes (`evaluacion/verificar_entrega2.py`, apagado de golpe de agente y de Postgres).
+- No suma CPU ni RAM al presupuesto de la planta: agente 2.5 CPU / 2 GB + Ollama 1.5 CPU / 6 GB
+  = 4 CPU / 8 GB, lo que pide el contrato.
+- Para respetar el contrato al pie de la letra habría que mover Postgres a `planta-lan` con el
+  label, y darle CPU y memoria del mismo presupuesto (sacándoselas al agente o a Ollama). No se
+  hizo para no empeorar la latencia de las notas, que es lo que se puntúa en tiempo real.
 
 El detalle de qué modelo se usa en cada tarea, versión, consumo y costo está en
 [INFORME.md](INFORME.md).
@@ -333,6 +349,30 @@ Para ver dónde se fue el tiempo en una corrida del corrector:
 
 ```bash
 python -m evaluacion.latencias <corrida>   # whisper, cola, primer mensaje, acuses y cortes por escenario
+```
+
+## Servidor MCP (consulta de la planta, solo lectura)
+
+`src/sistema/integraciones/mcp_server.py` expone 7 tools de solo lectura: `equipos`,
+`historial_sensor`, `historial_ordenes`, `inventario`, `catalogo_tareas`, `documentos` y
+`buscar_manuales`. Son las mismas funciones de `integraciones/tools.py` que usa el agente. Corre por
+stdio, así que lo arranca el cliente MCP (Claude Desktop, Cursor, el inspector de MCP) y no es un
+servicio del compose. Con la planta y el sistema levantados:
+
+```bash
+# desde el host (usa la planta en localhost)
+.venv/Scripts/python -m sistema.integraciones.mcp_server
+
+# o adentro del contenedor del agente (red de la planta); -T porque el cliente habla por stdio
+docker compose exec -T agente python -m sistema.integraciones.mcp_server
+```
+
+Ejemplo de configuración para un cliente MCP:
+
+```json
+{"mcpServers": {"planta": {"command": "docker",
+  "args": ["compose", "-p", "josbert-rizzo", "exec", "-T", "agente",
+           "python", "-m", "sistema.integraciones.mcp_server"]}}}
 ```
 
 ## Cómo correr los tests

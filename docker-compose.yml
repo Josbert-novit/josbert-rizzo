@@ -1,4 +1,4 @@
-# Sistema de mantenimiento — TP Academia Novit 2026 (Entrega 1)
+# Sistema de mantenimiento — TP Academia Novit 2026 (Entregas 1 y 2)
 #
 # Requiere la planta corriendo al lado (ver ../academia2026-tp):
 #   cd ../academia2026-tp && docker compose up -d --build
