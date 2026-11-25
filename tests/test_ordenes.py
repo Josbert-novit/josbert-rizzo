@@ -53,10 +53,11 @@ def test_borrador_sin_motivos_queda_aprobada(monkeypatch):
 
 
 def test_borrador_que_no_pasa_reglas_queda_pendiente_con_motivo(monkeypatch):
+    # El LLM dice "propio", pero I-VIB la hace la contratista según el catálogo (BUGS #77).
     monkeypatch.setattr(ordenes_mod, "buscar_fragmentos", lambda *a, **k: [])
     diagnostico = Diagnostico(
         causas_probables=[],
-        borrador=BorradorOrden(equipo="B-101", tareas=["T-I-CAL"], ejecutor="contratista"),
+        borrador=BorradorOrden(equipo="B-101", tareas=["I-VIB"], ejecutor="propio"),
     )
     analizador = AnalizadorFalso([diagnostico])
 
@@ -65,7 +66,34 @@ def test_borrador_que_no_pasa_reglas_queda_pendiente_con_motivo(monkeypatch):
     )
 
     assert orden.estado == EstadoOrden.pendiente
+    assert orden.ejecutor == "contratista"
     assert "ejecutor" in orden.motivo
+
+
+def test_detiene_equipo_sale_del_catalogo_y_no_del_llm(monkeypatch):
+    # BUGS #77: el LLM dice que T-B-EMP no detiene la bomba. El catálogo dice que sí; con B-101 en
+    # marcha y sin otra bomba parada no hay reserva, así que no puede aprobarse sola.
+    monkeypatch.setattr(ordenes_mod, "buscar_fragmentos", lambda *a, **k: [])
+    diagnostico = Diagnostico(
+        causas_probables=[],
+        borrador=BorradorOrden(
+            equipo="B-101", tareas=["T-B-EMP"], detiene_equipo=False, ejecutor="propio",
+            repuestos=[Repuesto(codigo="TX-EMP-KIT", cantidad=1)],
+        ),
+        evidencia_texto="pierde por la empaquetadura",
+    )
+    analizador = AnalizadorFalso([diagnostico])
+    http = HttpFalso([{"tag": "B-101", "estado": "marcha"}, {"tag": "B-102", "estado": "marcha"},
+                      {"tag": "B-103", "estado": "mantenimiento"}])
+
+    orden = procesar_evento_escalado(
+        _evento(), http, embeddings=None, traductor=None, analizador=analizador,
+    )
+
+    assert orden.detiene_equipo is True
+    assert orden.reduce_inyeccion is True
+    assert orden.estado == EstadoOrden.pendiente
+    assert "reserva" in orden.motivo
 
 
 def test_f10_no_genera_orden(monkeypatch):

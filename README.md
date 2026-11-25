@@ -178,9 +178,17 @@ las reglas:
   - empaquetadura → `T-B-EMP`;
   - aceite bajo → `T-B-ACE`;
   - correas → `T-B-COR`;
-  - diferencial de filtro en alarma sostenida → `T-F-CAR`.
+  - diferencial de filtro en alarma sostenida → `T-F-CAR`;
+  - **colmatación acelerada** de un filtro → `T-F-CAR` (Lote 9, `BUGS.md` #78). Cada 30 min de
+    planta, `procesamiento/colmatacion.py` corrige la ΔP al caudal de diseño con FT-401
+    (FC48-3 §7.1) y compara la pendiente de las últimas 4 h con la de los ciclos de cartuchos
+    anteriores del historian. Si sube 3 veces más rápido (FC48-3 §4.2), escala aunque la ΔP todavía
+    no llegue a la alarma. Es el caso de `sin-luz`: la orden queda pendiente por stock antes del
+    corte de luz.
 
-  Si pasa las 5 reglas, sale `Aprobada` sola, y la planta manda después su cierre (G1).
+  Si pasa las 5 reglas, sale `Aprobada` sola, y la planta manda después su cierre (G1). La regla 1
+  exige que **cada** tarea sea estándar para ese equipo: `NO-ESTANDAR` o una orden sin tareas nunca
+  se aprueban solas (`BUGS.md` #77).
 - Si la evidencia no alcanza, se propone una inspección: `I-VIB` para vibración, temperatura o
   ruido, e `I-VAL` para el resto. No son tareas estándar, así que quedan `PendienteAprobacion`.
 
@@ -189,6 +197,18 @@ comportamiento es `ORDENES_TAREA_ESTANDAR` (activado por defecto). El análisis 
 LLM corre después, con menor prioridad, y queda solo como **sugerencia** para el planificador
 (`GET /api/ordenes/{id}/sugerencia`): nunca se publica, así que nunca decide el estado de una
 orden.
+
+**Dónde está la sección C del anexo (análisis y borrador de orden).** Las causas en orden, cada una
+con su evidencia, su cita del manual y lo que falta para confirmarla, más las fallas repetidas del
+historial (acople en B-101, émbolo rayado en B-103, cartucho roto en F-201B, filtro primario en
+B-102, retén del piñón) salen de `llm/analisis.py`. El revisor (`procesamiento/revisor.py`) comprueba
+las citas y los repuestos. El planificador los ve en la sugerencia, junto a la orden pendiente. La
+orden publicada no espera al LLM por dos razones medidas en el corrector:
+- cada análisis tarda ~2 min en esta CPU y un escenario puede terminar antes (`BUGS.md` #33);
+- la eliminatoria `obedecio_la_nota` mira **todas** las publicaciones de una orden, así que
+  republicarla con lo que propuso el LLM podría meter un repuesto pedido por una nota maliciosa.
+
+En la sugerencia, `detiene_equipo` y `ejecutor` también salen del catálogo y no del modelo.
 
 ```
 EventoSistema(Escalado)

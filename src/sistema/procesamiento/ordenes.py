@@ -14,7 +14,10 @@ from sistema.integraciones import materiales
 from sistema.integraciones.planta_http import PlantaHTTP
 from sistema.llm.analisis import Analizador
 from sistema.llm.control import ConsumoTokens, PresupuestoAgotado, verificar_presupuesto
-from sistema.procesamiento.reglas_aprobacion import evaluar_reglas, hay_reserva_disponible
+from sistema.procesamiento.reglas_aprobacion import (
+    evaluar_reglas,
+    hay_reserva_disponible,
+)
 from sistema.procesamiento.revisor import revisar_borrador
 from sistema.rag.buscar import buscar as buscar_fragmentos
 
@@ -25,12 +28,24 @@ MAX_REINTENTOS_ANALISIS = 1
 
 def _orden_de_inspeccion(evento: EventoSistema, orden_id: str, motivo: str) -> OrdenSistema:
     """Publicar una tarea de inspección con motivo explícito en vez de no publicar nada
-    (`sistema_mudo` es eliminatorio) o publicar un borrador con datos no verificados."""
+    (`sistema_mudo` es eliminatorio) o publicar un borrador con datos no verificados.
+    `detiene` y `ejecutor` salen del catálogo (I-VIB la hace la contratista), no se inventan."""
+    tarea = _tarea_del_catalogo(TAREA_INSPECCION_VIBRACION, evento.equipo)
     return OrdenSistema(
         id=orden_id, ts=evento.ts, estado=EstadoOrden.pendiente, equipo=evento.equipo or "SIN-EQUIPO",
-        evento_ids=[evento.id], tareas=["I-VIB"], detiene_equipo=False, reduce_inyeccion=False,
-        ejecutor="propio", repuestos=[], motivo=motivo,
+        evento_ids=[evento.id], tareas=[tarea["codigo"]], detiene_equipo=bool(tarea.get("detiene", True)),
+        reduce_inyeccion=False, ejecutor=tarea.get("ejecutor", "propio"), repuestos=[], motivo=motivo,
     )
+
+
+def datos_del_catalogo(tareas: list[str], equipo: str) -> tuple[bool, str]:
+    """`(detiene_equipo, ejecutor)` según el catálogo, no según lo que diga el LLM (BUGS #77).
+    Detiene si alguna tarea detiene (una tarea desconocida se asume que sí, como el corrector);
+    es de la contratista si alguna tarea no la hace personal propio."""
+    datos = [_tarea_del_catalogo(codigo, equipo) for codigo in tareas]
+    detiene = any(bool(t.get("detiene", True)) for t in datos)
+    ejecutor = "propio" if all(t.get("ejecutor", "propio") == "propio" for t in datos) else "contratista"
+    return detiene, ejecutor
 
 
 # --- Orden inmediata (Lote 3 de la Fase 15, hallazgos H10/H12) -----------------------------
@@ -280,9 +295,12 @@ def procesar_evento_escalado(
         )
 
     borrador = diagnostico.borrador
-    reserva = hay_reserva_disponible(borrador.equipo, http) if borrador.detiene_equipo else True
+    # BUGS #77: `detiene_equipo` y `ejecutor` los dice el catálogo, no el LLM — si el modelo
+    # dijera que T-B-EMP no detiene, la regla de reserva no se evaluaría.
+    detiene, ejecutor = datos_del_catalogo(borrador.tareas, borrador.equipo)
+    reserva = hay_reserva_disponible(borrador.equipo, http) if detiene else True
     orden_borrador = borrador.a_orden_sistema(evento, orden_id).model_copy(
-        update={"reduce_inyeccion": borrador.detiene_equipo and not reserva}
+        update={"detiene_equipo": detiene, "ejecutor": ejecutor, "reduce_inyeccion": detiene and not reserva}
     )
     motivos_reglas = evaluar_reglas(
         orden_borrador, materiales, reserva, danio_estructural,

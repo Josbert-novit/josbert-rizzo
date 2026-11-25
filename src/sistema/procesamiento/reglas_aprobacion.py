@@ -59,13 +59,19 @@ def evaluar_reglas(
 ) -> list[str]:
     motivos: list[str] = []
 
-    # 1. Tarea estándar: cualquier código que no sea 'NO-ESTANDAR' tiene que estar en el
-    # catálogo de tareas estándar (si no, la propuso el análisis LLM sin base real, o es
-    # explícitamente no estándar y el análisis debería haber usado 'NO-ESTANDAR').
-    codigos_estandar = {t["codigo"] for t in catalogo.tareas_estandar()}
+    # 1. Tarea estándar: cada tarea tiene que estar en el catálogo de tareas estándar DEL EQUIPO
+    # (BUGS #77). 'NO-ESTANDAR' es, por definición, no estándar: va a revisión humana. Una orden
+    # sin tareas tampoco se aprueba sola. Mismo criterio que el corrector (`puntuar.py::reglas`).
+    codigos_estandar = {t["codigo"] for t in catalogo.tareas_estandar(borrador.equipo)}
+    if not borrador.tareas:
+        motivos.append("la orden no tiene tareas")
     for codigo in borrador.tareas:
-        if codigo != "NO-ESTANDAR" and codigo not in codigos_estandar:
-            motivos.append(f"tarea '{codigo}' no está en el catálogo de tareas estándar")
+        if codigo == "NO-ESTANDAR":
+            motivos.append("tarea no estándar (NO-ESTANDAR): requiere aprobación humana")
+        elif codigo not in codigos_estandar:
+            motivos.append(
+                f"tarea '{codigo}' no está en el catálogo de tareas estándar de '{borrador.equipo}'"
+            )
 
     # 2. Continuidad de inyección: si la tarea detiene el equipo, tiene que haber reserva.
     if borrador.detiene_equipo and not disponibilidad_reserva:

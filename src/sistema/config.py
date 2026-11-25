@@ -92,6 +92,15 @@ class Config:
     # mediana contra 2.9 s. `SUGERENCIA_LLM=0` la apaga del todo.
     sugerencia_llm = os.getenv("SUGERENCIA_LLM", "1").lower() not in ("0", "false", "no")
     quietud_sugerencia_s = float(os.getenv("QUIETUD_SUGERENCIA_S", "15"))
+    # Lote 9 (BUGS #78): colmatación acelerada de filtros por la tendencia del historian
+    # (`procesamiento/colmatacion.py`). Se revisa cada `colmatacion_intervalo_min` de PLANTA; el
+    # hilo mira el reloj de planta cada `intervalo_sondeo_colmatacion_s` reales.
+    colmatacion_tendencia = os.getenv("COLMATACION_TENDENCIA", "1").lower() not in ("0", "false", "no")
+    colmatacion_intervalo_min = float(os.getenv("COLMATACION_INTERVALO_MIN", "30"))
+    colmatacion_factor = float(os.getenv("COLMATACION_FACTOR", "3"))
+    colmatacion_pendiente_min = float(os.getenv("COLMATACION_PENDIENTE_MIN", "0.004"))
+    colmatacion_ventana_h = float(os.getenv("COLMATACION_VENTANA_H", "4"))
+    intervalo_sondeo_colmatacion_s = float(os.getenv("INTERVALO_SONDEO_COLMATACION_S", "2"))
     intervalo_latido_s = float(os.getenv("INTERVALO_LATIDO_S", "30"))
     intervalo_sondeo_estado_s = float(os.getenv("INTERVALO_SONDEO_ESTADO_S", "2"))
     intervalo_reconciliacion_s = float(os.getenv("INTERVALO_RECONCILIACION_S", "5"))

@@ -1371,3 +1371,27 @@ mensaje p90 24.9 s contra 7.4 s.
   al LLM 28 → 21.
 - [x] Corrida de verificación `lote8b` (20:59-21:41): **89.7/100**, sin eliminatorias. Primer mensaje p90 3.9 s
   (lote7-rag 24.9 s, lote6b 7.4 s), Whisper 2.7/3.7 s.
+
+### Lote 9 — cumplimiento del anexo E2: regla 1 y colmatación acelerada (24/11)
+
+Plan: `C:/Users/josbe/.claude/plans/propon-plan-foamy-perlis.md`. Sale del análisis del anexo de
+la Entrega 2 contra el código y `lote8b` (89.7): todo cumple, salvo la regla 1 y F3/D2 en `sin-luz`.
+
+- [x] Fase A (BUGS #77): la regla 1 ya no aprueba `NO-ESTANDAR`, órdenes sin tareas ni tareas
+  estándar de otro equipo. `detiene_equipo`/`ejecutor` salen del catálogo también en la sugerencia
+  del LLM y en la inspección de respaldo. 499 passed.
+- [x] Fase B (BUGS #78): `procesamiento/colmatacion.py` + hilo `vigilar_colmatacion`. Calibración
+  con `evaluacion/evaluar_colmatacion.py` (simulador en proceso, 7 escenarios × 4 semillas):
+  - v1 (21:54-22:13): F07 de `sin-luz` detectado en las 4 semillas entre 09:00 y 10:00, antes del
+    corte de las 15:30. Pero hubo **5 falsos positivos** en el F-201A: 4 en `sin-luz` a las 19:30
+    (transitorio al volver la luz) y 1 en `contratista` (semilla 2505).
+  - v2 (22:14-22:20, solo `sin-luz` y `contratista`): con 30 min de estabilización después de un
+    hueco o de un salto de caudal, queda 1 falso positivo (`sin-luz` 3404, +24 h). Era el F-201A
+    ya en alarma (1,55-1,72) con las bombas cavitando.
+  - v3 (22:24-22:42, 7 escenarios × 4 semillas): la tendencia no opina con la ΔP en alarma (de ahí
+    escala la alarma sostenida). **4/4 detecciones del F07 (09:00-10:00) y 0 falsos positivos.**
+    510 passed.
+- [x] Rebuild + `verificar_entrega2.py` (22:44-22:46): **32/32** (el primer intento cortó en el paso
+  5 por la consola cp1252 al imprimir "→"; con `PYTHONIOENCODING=utf-8` pasa). El hilo
+  `vigilar_colmatacion` lee el historian también después del kill.
+- [ ] Corrector completo `lote9` (7 escenarios, inicio 22:46; el primer intento cortó al instante: `python` del sistema sin `httpx`, se corre con el del venv): en curso.

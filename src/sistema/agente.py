@@ -4,7 +4,9 @@ import os
 import signal
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturoTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturoTimeoutError
+from datetime import timedelta
 
 import paho.mqtt.client as mqtt
 from planta_contrato import (
@@ -26,30 +28,54 @@ from sistema.integraciones.planta_http import PlantaHTTP
 from sistema.llm.cierre import ExtractorCierre
 from sistema.llm.control import ConsumoTokens, TrabajoUrgente, trabajo_urgente
 from sistema.llm.extraccion import Extractor
-from sistema.llm.ollama import cancelar_baja_prioridad, chat_ollama, generacion_cancelacion, soltar_baja_prioridad
+from sistema.llm.ollama import (
+    cancelar_baja_prioridad,
+    chat_ollama,
+    generacion_cancelacion,
+    soltar_baja_prioridad,
+)
 from sistema.llm.transcripcion import Transcriptor
 from sistema.persistencia import fotos as persistencia_fotos
 from sistema.persistencia import memoria
 from sistema.persistencia import ordenes as persistencia_ordenes
 from sistema.procesamiento.cierres import comparar_cierre_con_orden
-from sistema.procesamiento.parser_cierre import parsear_cierre
-from sistema.procesamiento.dialogo import EstadoDialogo, construir_mensaje, detectar_loop, procesar_respuesta
+from sistema.procesamiento.colmatacion import Umbrales, detector_desde_planta
+from sistema.procesamiento.dialogo import (
+    EstadoDialogo,
+    construir_mensaje,
+    detectar_loop,
+    procesar_respuesta,
+)
 from sistema.procesamiento.eventos import DetectorSensores, eventos_del_parte
-from sistema.procesamiento.interpretacion import configurar_parser
-from sistema.procesamiento.parser_notas import ParserPartes, catalogo_desde_planta
-from sistema.procesamiento.novedades import equipos_sin_novedad_seguros, novedades_del_parte, novedades_del_texto
 from sistema.procesamiento.fotos import encolar_o_analizar, reconciliar_fotos_pendientes
+from sistema.procesamiento.interpretacion import configurar_parser
 from sistema.procesamiento.limites import CatalogoLimites
+from sistema.procesamiento.novedades import (
+    equipos_sin_novedad_seguros,
+    novedades_del_parte,
+    novedades_del_texto,
+)
 from sistema.procesamiento.ordenes import (
     orden_abierta_equivalente,
     orden_inmediata,
     procesar_evento_escalado,
     sumar_evento,
 )
+from sistema.procesamiento.parser_cierre import parsear_cierre
+from sistema.procesamiento.parser_notas import ParserPartes, catalogo_desde_planta
 from sistema.procesamiento.rango_historico import VerificadorRango
-from sistema.procesamiento.recorridas import armar_parte, descargar_fotos, descargar_y_transcribir, guardar_parte
+from sistema.procesamiento.recorridas import (
+    armar_parte,
+    descargar_fotos,
+    descargar_y_transcribir,
+    guardar_parte,
+)
 from sistema.procesamiento.resolucion import ResolverNombres
-from sistema.procesamiento.seguridad import construir_evento, construir_mensaje_tablet, detectar
+from sistema.procesamiento.seguridad import (
+    construir_evento,
+    construir_mensaje_tablet,
+    detectar,
+)
 from sistema.rag.embeddings import Embeddings
 from sistema.rag.esquema import conectar as conectar_rag
 from sistema.rag.esquema import crear_esquema
@@ -835,6 +861,36 @@ def reconciliar_fotos(client: mqtt.Client, parar: threading.Event) -> None:
         parar.wait(config.intervalo_reconciliacion_s)
 
 
+def vigilar_colmatacion(client: mqtt.Client, parar: threading.Event) -> None:
+    """Lote 9 (BUGS #78): colmatación acelerada de filtros por la tendencia del historian
+    (FC48-3 §4.2). El evento sigue el camino de cualquier escalado de sensor de diferencial:
+    orden inmediata T-F-CAR y las reglas de siempre (en `sin-luz` queda Pendiente por stock antes
+    del corte, F3). Hilo propio: nunca el loop de paho ni el pool de las notas."""
+    if not config.colmatacion_tendencia:
+        return
+    _arranque_listo.wait(config.espera_primer_latido_s)
+    detector = None
+    while not parar.is_set():
+        try:
+            if reloj.sincronizado():
+                if detector is None:
+                    detector = detector_desde_planta(
+                        http,
+                        Umbrales(
+                            factor=config.colmatacion_factor, pendiente_min=config.colmatacion_pendiente_min,
+                            ventana_h=config.colmatacion_ventana_h,
+                        ),
+                        intervalo=timedelta(minutes=config.colmatacion_intervalo_min),
+                    )
+                for evento in detector.revisar(reloj.ahora()):
+                    _publicar(client, Topicos.EVENTOS, evento.model_dump_json())
+                    log.info("sistema/eventos -> %s (%s, colmatación)", evento.id, evento.tipo.value)
+                    _procesar_evento_escalado_con_corte(client, evento)
+        except Exception:
+            log.exception("falló una vuelta del detector de colmatación")
+        parar.wait(config.intervalo_sondeo_colmatacion_s)
+
+
 def _contar_pendientes() -> int | None:
     """Órdenes sin publicar + fotos sin analizar. None si Postgres no responde."""
     try:
@@ -1156,7 +1212,7 @@ def main() -> None:
     client.loop_start()
 
     # Lote 6 (B7): latido enseguida; la preparación corre en paralelo y las notas la esperan.
-    for objetivo in (publicar_estado, reconciliar_ordenes, reconciliar_fotos):
+    for objetivo in (publicar_estado, reconciliar_ordenes, reconciliar_fotos, vigilar_colmatacion):
         threading.Thread(target=objetivo, args=(client, parar), daemon=True, name=objetivo.__name__).start()
     threading.Thread(target=_preparar, args=(parar,), daemon=True, name="preparar").start()
 

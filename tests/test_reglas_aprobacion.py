@@ -110,11 +110,34 @@ def test_tarea_fuera_de_catalogo_no_aprueba():
     assert any("catálogo" in m for m in motivos)
 
 
-def test_no_estandar_no_dispara_el_chequeo_de_catalogo():
+def test_no_estandar_nunca_aprueba_sola():
+    # BUGS #77: antes NO-ESTANDAR pasaba la regla 1 y, sin repuestos y con personal propio,
+    # salía Aprobada. El anexo pide "tarea estándar" y el corrector la marca "tarea no estándar".
     catalogo = CatalogoFake({})
     orden = _orden(tareas=["NO-ESTANDAR"])
 
-    assert evaluar_reglas(orden, catalogo, disponibilidad_reserva=True) == []
+    motivos = evaluar_reglas(orden, catalogo, disponibilidad_reserva=True)
+
+    assert any("no estándar" in m for m in motivos)
+
+
+def test_orden_sin_tareas_no_aprueba():
+    catalogo = CatalogoFake({})
+    orden = _orden(tareas=[])
+
+    motivos = evaluar_reglas(orden, catalogo, disponibilidad_reserva=True)
+
+    assert any("no tiene tareas" in m for m in motivos)
+
+
+def test_tarea_estandar_de_otro_equipo_no_aprueba():
+    # T-B-EMP es estándar para B-101 en el catálogo fake, no para B-102.
+    catalogo = CatalogoFake({})
+    orden = _orden(tareas=["T-B-EMP"], equipo="B-102")
+
+    motivos = evaluar_reglas(orden, catalogo, disponibilidad_reserva=True)
+
+    assert any("B-102" in m and "catálogo" in m for m in motivos)
 
 
 def test_siempre_pendiente_fuerza_revision_aunque_todo_lo_demas_pase():

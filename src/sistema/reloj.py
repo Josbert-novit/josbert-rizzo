@@ -24,6 +24,11 @@ class RelojPlanta:
             if self._ultimo is None or ts > self._ultimo:
                 self._ultimo = ts
 
+    def sincronizado(self) -> bool:
+        """True si ya llegó algún mensaje de la planta (si no, `ahora()` es la hora de la máquina)."""
+        with self._lock:
+            return self._ultimo is not None
+
     def ahora(self) -> datetime:
         with self._lock:
             return self._ultimo if self._ultimo is not None else datetime.now(timezone.utc)

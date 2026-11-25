@@ -1128,3 +1128,46 @@ está en 1640"). El parser no entendía el tramo, la nota iba al LLM de respaldo
 **Arreglo**: "Stein" seguido de un número → "está en", y "la de los Stein" → "la dos está en".
 `evaluar_parser` (1085 notas): borradores perfectos 908 → 914, al LLM 28 → 21, fallas iguales.
 Test en `tests/test_lote6.py`.
+
+### 77. La regla 1 dejaba aprobar `NO-ESTANDAR` y órdenes sin tareas
+
+**Dónde**: `src/sistema/procesamiento/reglas_aprobacion.py` (`evaluar_reglas`) y
+`src/sistema/procesamiento/ordenes.py` (`procesar_evento_escalado`, `_orden_de_inspeccion`).
+**Bug**: la regla 1 (tarea estándar) se salteaba `NO-ESTANDAR`, no decía nada de una orden sin
+tareas y validaba contra el catálogo de **todos** los equipos. Una orden `NO-ESTANDAR` con
+personal propio y sin repuestos salía `Aprobada`, y había un test que lo daba por correcto. El
+anexo pide "tarea estándar" y el corrector la marca "tarea no estándar" (`puntuar.py::reglas`):
+es la eliminatoria `aprobacion_indebida`. Además, en la ruta del análisis con LLM,
+`detiene_equipo` y `ejecutor` los decidía el modelo: un "T-B-EMP no detiene" se salteaba la
+regla de reserva. No pasó en ninguna corrida porque la orden publicada sale de
+`orden_inmediata`, que toma todo del catálogo, pero la sugerencia al planificador sí pasaba por ahí.
+**Arreglo**: `NO-ESTANDAR` y la orden sin tareas dan motivo; cada tarea se valida contra
+`tareas_estandar(equipo)`. `detiene_equipo` y `ejecutor` salen del catálogo
+(`ordenes.py::datos_del_catalogo`), también en la inspección de respaldo (I-VIB es de la
+contratista). Tests en `tests/test_reglas_aprobacion.py` y `tests/test_ordenes.py`.
+
+### 78. `sin-luz`: ninguna orden antes del corte (F3 0 %, D2 75 % en todas las corridas)
+
+**Dónde**: nuevo `src/sistema/procesamiento/colmatacion.py`, hilo `vigilar_colmatacion` en
+`src/sistema/agente.py`.
+**Bug**: en `sin-luz` los cartuchos del F-201B se colmatan (F07) desde las 06:30 y la luz se corta
+a las 15:30. El operador no dice nada del F-201B antes del corte y la ΔP no llega a la alarma
+(1,5), así que no había evento ni orden: F3 "no había ninguna orden pendiente antes del corte" y
+D2 sin orden para F07. El escenario espera un T-F-CAR que quede pendiente porque no alcanza el
+stock del yacimiento (48 FC-CART-10 contra 40). La única evidencia antes del corte es la
+**tendencia del historian**, que el anexo nombra: con F07 la ΔP sube 4,6 a 13 veces más rápido que
+en los ciclos anteriores (FC48-3 §4.2, "Colmatación acelerada").
+**Arreglo**: cada 30 min de planta se corrige la ΔP de cada filtro al caudal de diseño con FT-401
+(FC48-3 §7.1), se separan los ciclos de cartuchos y se compara la pendiente de las últimas 4 h con
+la mediana de los ciclos anteriores. Con 3 veces la base y al menos 0,004 kg/cm²/h, en dos
+revisiones seguidas, se escala un evento de sensor con id fijo por día. Ese evento sigue el camino
+de siempre: orden inmediata T-F-CAR y reglas (Pendiente por stock). Calibrado con
+`evaluacion/evaluar_colmatacion.py` (simulador en proceso, 7 escenarios y semillas extra). La
+primera versión tuvo 5 falsos positivos en el F-201A, y de ahí salieron dos ajustes:
+- se descartan los 30 min siguientes a un hueco de datos válidos (corte de luz, bombas paradas) o a
+  un salto de caudal de más de 3 %, porque la ΔP vuelve desde casi 0 y parecía una subida rápida;
+- con la ΔP ya en `alarma_alta` (de `GET /api/planta`) la tendencia no opina. Desde ahí escala la
+  alarma sostenida con la misma T-F-CAR. Con los dos filtros sucios las bombas cavitan, el caudal
+  oscila entre pasos y la corrección pierde precisión.
+
+`COLMATACION_TENDENCIA=0` lo apaga. Tests en `tests/test_colmatacion.py`.
