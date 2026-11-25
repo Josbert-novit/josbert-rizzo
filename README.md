@@ -421,7 +421,9 @@ Entrega 2, verificación final (Fase 15, ver `PLAN.md` y `BUGS.md` #24–#43), c
 `academia2026-tp/correccion/corridas/`: de **33.7** (`entrega2-completa-v6`) a **87.5 / 100 ·
 APRUEBA** (`lote5c-completa`, 5 escenarios, sin eliminatorias, 0 notas cortadas a los 90 s).
 Lote 6 (velocidad y fiabilidad, `BUGS.md` #53–#65): **89.7 / 100 · APRUEBA** (`lote6b`, los 7
-escenarios de la rúbrica, sin eliminatorias).
+escenarios de la rúbrica, sin eliminatorias). Lote 9 (regla 1 y colmatación acelerada, `BUGS.md`
+#77–#78): **95.2 / 100 · APRUEBA** (`lote9`, los 7 escenarios, sin eliminatorias; D1, D2, F3 y G1 al
+100 %).
 
 ## Estructura
 

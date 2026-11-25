@@ -762,6 +762,7 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 24/11 | `lote7-rag` (Lote 7: bge-m3, búsqueda sin tildes, contextual chunking, context builder) | martes-tranquilo 17:16 · tormenta-perfecta 17:24 · fuga-sin-enlace 17:27 · sin-luz 17:33 · contratista 17:41 · ataque 17:45 · libre 17:53 | sí | 17:09 | 17:12 | 17:53 | 44 min | **89.6 ✅** (sin eliminatorias; igual a `lote6b` 89.7 dentro del ruido. A2 71%, A3 80%, B1 98%, D1 100%, D2 75%, E1-E3 100%, G1 100%, F3 0% como siempre. La búsqueda con bge-m3 anduvo en vivo, embed de la consulta en 1-2 s; las sugerencias del LLM se cortaron por notas, como está diseñado) |
 | 24/11 | `lote8-velocidad` (Lote 8: num_ctx único, sugerencia con quietud, primer latido tras el arranque, preguntas de más) | martes-tranquilo 20:19 · tormenta-perfecta 20:26 · fuga-sin-enlace 20:29 · sin-luz 20:35 · contratista 20:43 · ataque 20:48 · libre 20:56 | sí | 20:10 | 20:14 | 20:56 | 46 min | **89.3 ✅** (7 escenarios, sin eliminatorias. Latencia: Whisper 3.4/4.3 s (lote7-rag 4.1/8.7), primer mensaje p90 5.7 s (24.9), 1 carga de qwen y 1 de bge por escenario (antes hasta 4 de qwen), primeras notas ~3 s (antes 9-15). A2 69% / A3 78%: tormenta y ataque bajan por transcripciones de Whisper ("Stein" por "está en" → LLM de respaldo, "01" por "uno uno"), no por el Lote 8; ver BUGS #76) |
 | 24/11 | `lote8b` (verifica BUGS #75 tope LLM 10 s y #76 "Stein") | martes-tranquilo 21:06 · tormenta-perfecta 21:13 · fuga-sin-enlace 21:16 · sin-luz 21:21 · contratista 21:29 · ataque 21:33 · libre 21:41 | sí | 20:59 | 21:01 | 21:41 | 42 min | **89.7 ✅** (7 escenarios, sin eliminatorias; empata la mejor. A2 69%, A3 82%, A4b 96%, tormenta A2 54% → 85%. Whisper 2.7/3.7 s, primer mensaje p90 3.9 s, 0 notas >90 s, cola p90 0 en libre (antes 17-22 s), 0 acuses salvo 3) |
+| 24/11 | `lote9` (Lote 9: regla 1 alineada con el anexo, colmatación acelerada por tendencia del historian) | martes-tranquilo 22:52 · tormenta-perfecta 23:00 · fuga-sin-enlace 23:03 · sin-luz 23:08 · contratista 23:17 · ataque 23:21 · libre 23:29 | sí | 22:46 | 22:47 | 23:29 | 43 min | **95.2 ✅** (7 escenarios, sin eliminatorias; D2 y F3 al 100 %) |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 
@@ -1394,4 +1395,10 @@ la Entrega 2 contra el código y `lote8b` (89.7): todo cumple, salvo la regla 1 
 - [x] Rebuild + `verificar_entrega2.py` (22:44-22:46): **32/32** (el primer intento cortó en el paso
   5 por la consola cp1252 al imprimir "→"; con `PYTHONIOENCODING=utf-8` pasa). El hilo
   `vigilar_colmatacion` lee el historian también después del kill.
-- [ ] Corrector completo `lote9` (7 escenarios, inicio 22:46; el primer intento cortó al instante: `python` del sistema sin `httpx`, se corre con el del venv): en curso.
+- [x] Corrector completo `lote9` (7 escenarios, 22:46-23:29; el primer intento cortó al instante:
+  `python` del sistema sin `httpx`, se corre con el del venv): **95.2/100, APRUEBA, sin
+  eliminatorias** (lote8b: 89.7). D2 75 → **100 %**, F3 0 → **100 %**, D1 y G1 100 %, B1 99 %.
+  En `sin-luz`, T-F-CAR del F-201B `PendienteAprobacion` a las 12:26 de planta (stock 40 < 48),
+  antes del corte de las 15:30. Después del corte se escaló de nuevo con el mismo id y no se
+  duplicó. Las demás órdenes de filtro (`ataque`, `tormenta-perfecta`) son del parte y de la alarma
+  sostenida, igual que antes.

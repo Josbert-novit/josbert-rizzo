@@ -211,8 +211,9 @@ enlace). Corrector oficial (`auditoria-e2-completa`, 5 escenarios): **88.0/100, 
 eliminatorias** (antes 87.5).
 
 **Lo que sigue abajo y por qué**:
-- **F3 0%**: en `sin-luz` la única falla (F07 en F-201B) no da ninguna señal antes del corte (las
-  lecturas del filtro B llegan después). No se fabrica una orden para esto.
+- **F3 0%**: en `sin-luz` la única falla (F07 en F-201B) no llega a la alarma antes del corte, y
+  el operador lee el filtro B recién después. Resuelto en el Lote 9 con la tendencia del historian
+  (ver "Lote 9" más abajo).
 - **G1**: resuelto después de la auditoría (ver abajo).
 - **Visión**: probada en vivo el 20/11 con Nemotron VL (ver "Costo y estado de prueba en vivo").
   Las fotos del simulador son de muestra, así que el daño estructural no se pudo ver en una foto
@@ -309,3 +310,31 @@ nota más al LLM, y eso no compensa.
 duración de una corrida completa no baja (42-46 min): la marca el reloj del corrector. Cada evento
 espera la respuesta del operador más 5 s de silencio, y hay 60 s de gracia por escenario. Lo que
 depende del sistema es ~25 % de cada nota. Costo: sin cambios, USD 0.
+
+## Lote 9: regla 1 alineada con el anexo y colmatación acelerada (24/11)
+
+Sale de revisar el anexo de la Entrega 2 punto por punto contra el código y contra `lote8b`.
+
+| Hallazgo | Qué cambió |
+| --- | --- |
+| Regla 1: `NO-ESTANDAR` y las órdenes sin tareas salían `Aprobada` (había un test que lo pedía) | Van siempre a revisión humana. Cada tarea se valida contra las estándar **de ese equipo**. En la sugerencia del LLM, `detiene_equipo` y `ejecutor` salen del catálogo (`BUGS.md` #77). |
+| `sin-luz`: ninguna orden antes del corte (F3 0 %, D2 75 % en todas las corridas desde el Lote 4) | Detector de **colmatación acelerada** por la tendencia del historian (FC48-3 §4.2), con la ΔP corregida por caudal (§7.1) y comparada con los ciclos de cartuchos anteriores (`BUGS.md` #78). |
+
+El detector se calibró antes de prenderlo con `evaluacion/evaluar_colmatacion.py`: el simulador
+corre en proceso, con 7 escenarios y 4 semillas cada uno. Resultado final: 4 de 4 detecciones del
+F07, todas entre las 09:00 y las 10:00, y 0 falsos positivos. La primera versión tenía 5 falsos
+positivos, y de ahí salieron dos ajustes: descartar el transitorio después de un corte o de un
+salto de caudal, y no opinar con la ΔP ya en alarma.
+
+| Medida | lote8b | **lote9** |
+| --- | ---: | ---: |
+| D2 Orden adecuada a la falla | 75 % | **100 %** |
+| F3 Sobrevive al corte de luz | 0 % | **100 %** |
+| D1 / G1 | 100 % / 100 % | 100 % / 100 % |
+| Eliminatorias | ninguna | ninguna |
+| Nota del corrector | 89.7 | **95.2** |
+
+En `lote9` la orden T-F-CAR del F-201B salió `PendienteAprobacion` a las 12:26 de planta: el
+yacimiento tiene 40 FC-CART-10 y la orden pide 48. El corte de luz es a las 15:30. Después del
+corte, la orden volvió con el mismo id y el mismo estado: el agente escaló de nuevo con el mismo
+id del día y no se duplicó. `verificar_entrega2.py`: 32/32. 510 tests.
