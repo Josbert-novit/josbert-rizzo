@@ -278,3 +278,34 @@ eran los modelos sino cómo usaban la CPU. Cambios (detalle en `BUGS.md` #53–#
 Con los dos bugs que encontró esa corrida arreglados (`BUGS.md` #63, #64), `lote6b` dio **89.7 /
 100, APRUEBA, sin eliminatorias**, con los 7 escenarios de la rúbrica: Whisper 3.0 s de mediana y
 4.4 s de p90, primera respuesta en la tablet en 7.4 s (p90), 0 notas de más de 90 s.
+
+## Tiempo de ejecución (Lote 8, 24/11)
+
+Con bge-m3 (Lote 7), `lote7-rag` dio 89.6 pero respondía más lento. Las primeras notas de cada
+escenario competían con el precalentado de Ollama: bge-m3 es más pesado que nomic, y el
+precalentado llegó a 27 s. Además qwen se recargaba hasta 4 veces por escenario porque cada tarea le
+pedía otro tamaño de contexto. Cambios (detalle en `BUGS.md` #69–#76):
+
+- un solo `num_ctx` (4096) para todas las llamadas a qwen: una carga por escenario;
+- el primer latido sale cuando terminó el arranque (Whisper, Ollama, corpus), con tope de 45 s:
+  el corrector arranca el reloj con ese latido;
+- la sugerencia del análisis (no se publica) espera 15 s sin notas antes de usar Ollama;
+- menos preguntas de más y menos notas al LLM por manías de Whisper ("filtro ve", "09", "fitro",
+  "Stein") y por no repetir la pregunta de equipo;
+- tope del LLM de respaldo de 25 a 10 s: 11 de 14 llamadas se cortaban igual a los 25 s.
+
+Whisper sigue con beam 5. Con `evaluar_whisper.py`, beam 2 ahorra ~0.3 s por nota pero manda una
+nota más al LLM, y eso no compensa.
+
+| Medida (todas las notas de la corrida) | lote6b | lote7-rag | lote8-velocidad | lote8b |
+| --- | ---: | ---: | ---: | ---: |
+| Whisper mediana / p90 | 3.0 / 4.4 s | 4.1 / 8.7 s | 3.4 / 4.3 s | **2.7 / 3.7 s** |
+| Primera respuesta en la tablet, p90 | 7.4 s | 24.9 s | 5.7 s | **3.9 s** |
+| Cargas de qwen por escenario | hasta 4 | hasta 4 | 1 | **1** |
+| Notas de más de 90 s | 0 | 0 | 0 | 0 |
+| Nota del corrector | 89.7 | 89.6 | 89.3 | **89.7** |
+
+`lote8b` es la versión final: tope de 10 s del LLM de respaldo y "Stein" incluidos. La
+duración de una corrida completa no baja (42-46 min): la marca el reloj del corrector. Cada evento
+espera la respuesta del operador más 5 s de silencio, y hay 60 s de gracia por escenario. Lo que
+depende del sistema es ~25 % de cada nota. Costo: sin cambios, USD 0.

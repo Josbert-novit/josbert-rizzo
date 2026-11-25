@@ -760,6 +760,8 @@ termina de construir las imágenes (solo si no se usa `--sin-construir`). Todas 
 | 20/11 | `lote6b` (arreglo #63 + "El A1" = la uno) | martes-tranquilo 15:14 · tormenta-perfecta 15:21 · fuga-sin-enlace 15:24 · sin-luz 15:29 · contratista 15:37 · ataque 15:41 · libre 15:49 | sí | 15:07 | 15:09 | 15:49 | 42 min | **89.7 ✅** (7 escenarios, sin eliminatorias; G1 100%, A2 70%, A3 82%, B1 97%. Whisper 3.0/4.4 s, primer mensaje p90 7.4 s, 0 notas >90 s; el #63 actuó 4 veces) |
 
 | 24/11 | `lote7-rag` (Lote 7: bge-m3, búsqueda sin tildes, contextual chunking, context builder) | martes-tranquilo 17:16 · tormenta-perfecta 17:24 · fuga-sin-enlace 17:27 · sin-luz 17:33 · contratista 17:41 · ataque 17:45 · libre 17:53 | sí | 17:09 | 17:12 | 17:53 | 44 min | **89.6 ✅** (sin eliminatorias; igual a `lote6b` 89.7 dentro del ruido. A2 71%, A3 80%, B1 98%, D1 100%, D2 75%, E1-E3 100%, G1 100%, F3 0% como siempre. La búsqueda con bge-m3 anduvo en vivo, embed de la consulta en 1-2 s; las sugerencias del LLM se cortaron por notas, como está diseñado) |
+| 24/11 | `lote8-velocidad` (Lote 8: num_ctx único, sugerencia con quietud, primer latido tras el arranque, preguntas de más) | martes-tranquilo 20:19 · tormenta-perfecta 20:26 · fuga-sin-enlace 20:29 · sin-luz 20:35 · contratista 20:43 · ataque 20:48 · libre 20:56 | sí | 20:10 | 20:14 | 20:56 | 46 min | **89.3 ✅** (7 escenarios, sin eliminatorias. Latencia: Whisper 3.4/4.3 s (lote7-rag 4.1/8.7), primer mensaje p90 5.7 s (24.9), 1 carga de qwen y 1 de bge por escenario (antes hasta 4 de qwen), primeras notas ~3 s (antes 9-15). A2 69% / A3 78%: tormenta y ataque bajan por transcripciones de Whisper ("Stein" por "está en" → LLM de respaldo, "01" por "uno uno"), no por el Lote 8; ver BUGS #76) |
+| 24/11 | `lote8b` (verifica BUGS #75 tope LLM 10 s y #76 "Stein") | martes-tranquilo 21:06 · tormenta-perfecta 21:13 · fuga-sin-enlace 21:16 · sin-luz 21:21 · contratista 21:29 · ataque 21:33 · libre 21:41 | sí | 20:59 | 21:01 | 21:41 | 42 min | **89.7 ✅** (7 escenarios, sin eliminatorias; empata la mejor. A2 69%, A3 82%, A4b 96%, tormenta A2 54% → 85%. Whisper 2.7/3.7 s, primer mensaje p90 3.9 s, 0 notas >90 s, cola p90 0 en libre (antes 17-22 s), 0 acuses salvo 3) |
 
 (La hora junto a cada escenario es cuando terminó ese escenario.)
 
@@ -1356,5 +1358,16 @@ mensaje p90 24.9 s contra 7.4 s.
   cada escenario tuvieron Whisper de 9-15 s.
 - [x] Auditoría E2: rótulos "(Entrega 1)" → "(Entregas 1 y 2)"; README con el servidor MCP y con la
   decisión de redes de Postgres (decisión del usuario: documentar, no mover).
-- [ ] P3: Whisper beam 2/3 sin VAD con `evaluar_whisper.py` (17:55, en curso).
-- [ ] Rebuild + corrector completo (7 escenarios) con todo el Lote 8.
+- [x] P3: Whisper beam 2/3 sin VAD con `evaluar_whisper.py` (19:57-20:07). Con el parser del
+  Lote 8, beam 5 (actual) 3.3/4.6 s, 52 perfectas, 18 al LLM, 3 fallas; beam 2 3.0/3.6 s, 51
+  perfectas, 19 al LLM. Se queda beam 5: ~0.3 s por nota no compensa una nota más al LLM (hasta
+  25 s). El benchmark encontró dos manías más (BUGS #74): "fitro"/"mediado" y los dos filtros
+  dichos "filtro a". Beam 5 pasó de 48 a 52 perfectas y de 4 a 3 fallas con el parser nuevo.
+- [x] Rebuild + corrector completo `lote8-velocidad` (20:10-20:56): **89.3/100**, sin eliminatorias.
+  Primer mensaje p90 24.9 → 5.7 s, Whisper p90 8.7 → 4.3 s. La duración total no baja (46 min con
+  build): la manda el reloj del corrector (operador, 5 s de silencio por evento, 60 s de gracia).
+- [x] BUGS #75: tope del LLM de respaldo 25 → 10 s (11 de 14 notas se cortaban a los 25 s).
+- [x] BUGS #76: "Stein" + número = "está en". `evaluar_parser` (1085 notas): perfectas 908 → 914,
+  al LLM 28 → 21.
+- [x] Corrida de verificación `lote8b` (20:59-21:41): **89.7/100**, sin eliminatorias. Primer mensaje p90 3.9 s
+  (lote7-rag 24.9 s, lote6b 7.4 s), Whisper 2.7/3.7 s.

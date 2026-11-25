@@ -43,6 +43,15 @@ _MANIAS_WHISPER: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\b(?!golpeteo\b)\w+(?:teo|cheo)(?=\s+met[aá]lic)", re.IGNORECASE), "golpeteo"),
     # Lote 6 (C4): "el filtro Bmedio 10", "filtro BME10", "filtro B-Mario 10" = "filtro B me dio".
     # Solo si sigue un número (la lectura), para no tocar "el filtro B" a secas.
+    # Lote 8: "y fitro a mediado 0.4 de diferencial", "fitro B-mediodia": "filtro" sin la l y "me
+    # dio" deformado (benchmark de Whisper, beam 2 y beam 5). Va antes de la regla de abajo.
+    (re.compile(r"\bfitro\b", re.IGNORECASE), "filtro"),
+    # Lote 8: "la de la punta Stein 114 kilos de descarga" = "está en"; "la de los Stein 1640" =
+    # "la dos está en". Salió en cpu4, g1-tarea-estandar, lote7-rag y lote8-velocidad; la nota iba al
+    # LLM de respaldo (25 s) y el borrador salía mal (lote8-velocidad, tormenta NOTA-00005/00016).
+    (re.compile(r"\bla de los stein\b" + _NUMERO_SIGUE, re.IGNORECASE), "la dos está en"),
+    (re.compile(r"\bstein\b" + _NUMERO_SIGUE, re.IGNORECASE), "está en"),
+    (re.compile(r"\bmedi(?:ado|od[ií]a)" + _NUMERO_SIGUE, re.IGNORECASE), "me dio"),
     (re.compile(r"\bfiltro ?([AB])[- ]?(?:medi[oó]|mario|me)\s*(?=\d)", re.IGNORECASE), r"filtro \1 me dio "),
     # Lote 8: "el filtro ve medio 0,9" = "filtro B": Whisper escribe la letra como suena (be/ve).
     # Terminaba en "¿a cuál filtro?" (pregunta de más, A4b) y el borrador ponía el diferencial en
@@ -169,4 +178,20 @@ class ParserPartes:
                 motivo_confirmacion=motivo,
                 ambiguedad_valor=amb is not None,
             ))
+        self._segundo_diferencial_es_del_otro_filtro(filas)
         return filas, va_al_llm
+
+    def _segundo_diferencial_es_del_otro_filtro(self, filas: list[FilaParteInterna]) -> None:
+        """Lote 8: Whisper escribe "fitro a" para los dos filtros ("y fitro a medio 0,3 de
+        diferencial y fitro a medio 1 de diferencial", benchmark de Whisper). Un filtro no tiene
+        dos diferenciales en la misma nota: si hay dos filtros y uno se quedó con dos lecturas y el
+        otro con ninguna, la segunda es del otro (el operador lo ve igual en la confirmación)."""
+        filtros = self.catalogo.filtros()
+        if len(filtros) != 2:
+            return
+        dif = [f for f in filas if f.variable == "presion_diferencial" and f.valor is not None and f.tag in filtros]
+        if len(dif) != 2 or dif[0].tag != dif[1].tag:
+            return
+        otro = next(t for t in filtros if t != dif[0].tag)
+        dif[1].tag = otro
+        dif[1].tag_dicho = self.resolutor.nombre_corto(otro) or otro

@@ -65,7 +65,10 @@ class Config:
     # default (2048) y el análisis con 4096, y en `lote6b` tormenta-perfecta qwen se cargó 4 veces
     # (1.3-2.5 s de CPU cada una, encima de las notas). 4096 es lo que necesita el análisis.
     ollama_num_ctx = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
-    timeout_extraccion_s = float(os.getenv("TIMEOUT_EXTRACCION_S", "25"))
+    # Lote 8: 25 → 10 s. En lote6-velocidad, lote6b, lote7-rag y lote8-velocidad fueron 14 notas al
+    # LLM de respaldo: las 3 que terminaron tardaron 3-6 s y las otras 11 se cortaron a los 25 s y
+    # usaron igual el borrador del parser. Esos 25 s eran espera pura antes de contestar la tablet.
+    timeout_extraccion_s = float(os.getenv("TIMEOUT_EXTRACCION_S", "10"))
     timeout_cierre_llm_s = float(os.getenv("TIMEOUT_CIERRE_LLM_S", "45"))
     timeout_embeddings_s = float(os.getenv("TIMEOUT_EMBEDDINGS_S", "30"))
 

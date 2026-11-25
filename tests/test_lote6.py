@@ -510,3 +510,25 @@ def test_primer_latido_sale_al_tope_aunque_no_termine_el_arranque(monkeypatch):
     assert len(publicados) == 1
     assert tardo < 3.0
     agente._arranque_listo.set()
+
+
+def test_fitro_y_mediado_son_filtro_y_me_dio():
+    filas = PARSER.parsear("El fitro a medio 1.3 de diferencial.", AHORA, [])
+    assert [(f.tag, f.valor) for f in filas] == [("F-201A", 1.3)]
+    assert normalizar_whisper("fitro B mediado 0,9") .startswith("filtro B me dio")
+
+
+def test_dos_diferenciales_en_el_mismo_filtro_el_segundo_es_del_otro():
+    # Whisper escribe "fitro a" para los dos filtros (benchmark de Whisper, tormenta NOTA-00013).
+    filas = PARSER.parsear("y fitro a mediado 0.4 de diferencial y fitro a mediado 1.1 de diferencial", AHORA, [])
+    assert [(f.tag, f.valor) for f in filas] == [("F-201A", 0.4), ("F-201B", 1.1)]
+
+
+def test_stein_es_esta_en():
+    # lote8-velocidad, tormenta NOTA-00005: iba al LLM de respaldo y el borrador salía mal.
+    texto = ("El de la derecha medió 1,1 de diferencial. La de la punta Stein 114 kilos de descarga. "
+             "Y la de los Stein 1640 de descarga el rodamiento medio 66 grados con la pistola")
+    filas = PARSER.parsear(texto, AHORA, [])
+    assert filas is not None, "no debe caer al LLM"
+    assert ("B-101", "presion_descarga_local", 114.0) in [(f.tag, f.variable, f.valor) for f in filas]
+    assert ("B-102", "presion_descarga_local", 1640.0) in [(f.tag, f.variable, f.valor) for f in filas]

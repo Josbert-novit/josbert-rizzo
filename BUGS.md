@@ -1092,3 +1092,39 @@ El primer latido lo espera con tope de 45 s (`ESPERA_PRIMER_LATIDO_S`): se manti
 del bug #25, que era no latir durante minutos. El corrector espera hasta 180 s el primer latido y
 F2 tolera 60 s entre latidos. Mientras espera, el agente se sigue marcando vivo para el
 healthcheck. Tests en `tests/test_lote6.py`.
+
+### 74. "fitro a mediado 0.4": dos manías más, y los dos filtros dichos "filtro A"
+
+**Dónde**: `src/sistema/procesamiento/parser_notas.py` (`_MANIAS_WHISPER`,
+`_segundo_diferencial_es_del_otro_filtro`).
+**Bug**: el benchmark de Whisper (`evaluar_whisper.py`, 90 audios) mostró "fitro" por "filtro" y
+"mediado"/"mediodia" por "me dio": la nota iba al LLM, hasta 25 s. Con la regla de "fitro", aparece
+otro caso: Whisper escribe "fitro a" para los **dos** filtros ("y fitro a medio 0,3 de diferencial
+y fitro a medio 1 de diferencial"), y el borrador quedaba con dos diferenciales en F-201A.
+**Arreglo**: "fitro" → "filtro", "mediado/mediodia" + número → "me dio". Si un filtro queda con dos
+diferenciales y el otro con ninguno, el segundo va al otro filtro (la planta tiene dos, y el
+operador lo ve en la confirmación). Beam 5 en el benchmark: perfectas 48 → 52, preguntas 13 → 10,
+fallas 4 → 3, al LLM 18 → 18. `evaluar_parser` (1003 notas): perfectas 839 → 842, fallas 42 → 40.
+Tests en `tests/test_lote6.py`.
+
+### 75. El LLM de respaldo de la extracción casi nunca terminaba: 25 s de espera pura
+
+**Dónde**: `src/sistema/config.py` (`timeout_extraccion_s`).
+**Bug**: cuando el parser deja texto con números sin entender (p. ej. Whisper escribe "stein" por
+"la de la punta está en"), la nota va al LLM de respaldo con un tope de 25 s. En cuatro corridas
+(`lote6-velocidad`, `lote6b`, `lote7-rag`, `lote8-velocidad`) fueron 14 notas: 3 terminaron en
+3-6 s y las otras 11 se cortaron a los 25 s y usaron igual el borrador del parser. La primera
+respuesta en la tablet llegaba a los 28-30 s.
+**Arreglo**: tope de 10 s (`TIMEOUT_EXTRACCION_S`): entran las que sí terminan, y las demás
+contestan ~15 s antes con el mismo borrador.
+
+### 76. "la de la punta Stein 114": Whisper escribe "Stein" por "está en"
+
+**Dónde**: `src/sistema/procesamiento/parser_notas.py` (`_MANIAS_WHISPER`).
+**Bug**: en `cpu4`, `g1-tarea-estandar`, `lote7-rag` y `lote8-velocidad`, Whisper transcribió "está
+en" como "Stein" ("la de la punta Stein 114 kilos de descarga"; "la de los Stein 1640" por "la dos
+está en 1640"). El parser no entendía el tramo, la nota iba al LLM de respaldo, que se cortaba a los
+25 s, y el borrador salía mal (`lote8-velocidad`, tormenta NOTA-00005 y NOTA-00016: A2 54 %).
+**Arreglo**: "Stein" seguido de un número → "está en", y "la de los Stein" → "la dos está en".
+`evaluar_parser` (1085 notas): borradores perfectos 908 → 914, al LLM 28 → 21, fallas iguales.
+Test en `tests/test_lote6.py`.
